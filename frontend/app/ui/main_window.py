@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QMainWin
 from backend.app.core.database import get_session
 from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
+from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.inventory_page import InventoryPage
 from frontend.app.ui.purchases_page import PurchasesPage
 from frontend.app.ui.sales_page import SalesPage
@@ -61,6 +62,8 @@ class MainWindow(QMainWindow):
                 page = SalesPage()
             elif name == "المشتريات":
                 page = PurchasesPage()
+            elif name == "العملاء":
+                page = CustomersPage()
             else:
                 page = ModulePage(ptitle, desc, actions)
             if hasattr(page, "back_requested"): page.back_requested.connect(self._show_dashboard)
@@ -87,7 +90,11 @@ class MainWindow(QMainWindow):
         ql.addLayout(row); layout.addWidget(quick, 1); return page
 
     def _show_dashboard(self): self.stack.setCurrentWidget(self.dashboard); self.refresh_dashboard()
-    def _show_page(self, name): self.stack.setCurrentWidget(self._pages[name])
+    def _show_page(self, name):
+        page = self._pages[name]
+        if hasattr(page, "refresh"):
+            page.refresh()
+        self.stack.setCurrentWidget(page)
 
     def refresh_dashboard(self):
         session = get_session()
@@ -100,12 +107,22 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _stylesheet():
         return """
-        QWidget { font-family: 'Segoe UI'; font-size: 14px; }
-        QMainWindow, QWidget { background: #f4f6f8; color: #1f2933; }
-        #header, #summaryCard, #panel, #footerPanel { background: white; border: 1px solid #e1e6eb; border-radius: 12px; }
-        #appTitle { font-size: 25px; font-weight: 700; } #appSubtitle, #pageDescription { color: #667085; }
-        #pageTitle { font-size: 19px; font-weight: 700; } #primaryButton { background: #1769aa; color: white; border: 0; border-radius: 8px; padding: 10px 18px; font-weight: 600; }
-        #navButton, #secondaryButton { background: white; border: 1px solid #d9e0e7; border-radius: 8px; padding: 9px 8px; } #navButton:hover, #actionButton:hover { background: #eef5fb; }
-        #cardTitle { color: #667085; } #cardValue { font-size: 22px; font-weight: 700; margin-top: 6px; } #actionButton { background: #f8fafc; border: 1px solid #d9e0e7; border-radius: 8px; padding: 12px; }
-        #linkButton { background: transparent; border: 0; font-weight: 600; padding: 5px 8px; } #footer { color: #667085; font-size: 12px; }
+        QWidget { font-family: 'Segoe UI'; font-size: 13px; }
+        QMainWindow { background: #f5f7fb; }
+        #header { background: #17324d; border-radius: 12px; }
+        #appTitle { color: white; font-size: 25px; font-weight: 700; }
+        #appSubtitle { color: #dce8f2; font-size: 13px; }
+        #summaryCard, #panel { background: white; border: 1px solid #dbe3ec; border-radius: 10px; }
+        #summaryCard QLabel:first-child { color: #61758a; }
+        #cardValue { font-size: 23px; font-weight: 700; color: #17324d; }
+        #pageTitle { font-size: 20px; font-weight: 700; color: #17324d; }
+        #pageDescription, #appSubtitle { color: #61758a; }
+        QPushButton { min-height: 36px; padding: 0 14px; border-radius: 7px; border: 1px solid #cbd5df; background: white; }
+        #primaryButton { background: #17324d; color: white; border: none; }
+        #secondaryButton { background: #eef2f6; }
+        #actionButton { min-height: 44px; }
+        #navButton { background: #17324d; color: white; border: none; }
+        #linkButton { border: none; background: transparent; color: #17324d; }
+        QLineEdit, QComboBox, QDoubleSpinBox { min-height: 34px; }
+        QTableWidget { border: 1px solid #dbe3ec; gridline-color: #e8edf2; }
         """
