@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from backend.app.core.database import initialize_database
+from frontend.app.ui.cashboxes_page import CashboxesPage
 from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.expenses_page import ExpensesPage
 from frontend.app.ui.inventory_page import InventoryPage
@@ -37,6 +38,9 @@ def test_main_window_builds_in_offscreen_mode():
     assert window._pages["الموردون"].table.columnCount() == 5
     assert isinstance(window._pages["المصروفات"], ExpensesPage)
     assert window._pages["المصروفات"].table.columnCount() == 6
+    assert isinstance(window._pages["الصناديق والحسابات"], CashboxesPage)
+    assert window._pages["الصناديق والحسابات"].cashboxes_table.columnCount() == 5
+    assert window._pages["الصناديق والحسابات"].movements_table.columnCount() == 6
     assert isinstance(window._pages["التقارير"], ReportsPage)
     assert window._pages["التقارير"].table.columnCount() == 2
 
