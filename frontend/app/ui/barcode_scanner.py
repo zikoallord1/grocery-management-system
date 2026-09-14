@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from time import monotonic
+
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtMultimedia import QCamera, QCameraDevice, QMediaCaptureSession, QVideoFrame, QVideoSink
@@ -8,13 +10,13 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLay
 try:
     import numpy as np
     from pyzbar.pyzbar import decode as decode_barcodes
-except Exception:  # Optional at import time so the desktop app can still open without scanner deps.
+except Exception:
     np = None
     decode_barcodes = None
 
 
 class BarcodeScannerWidget(QFrame):
-    """Compact always-ready camera barcode scanner for the desktop/tablet UI."""
+    """Compact camera barcode scanner that stays over the main UI."""
 
     barcode_detected = Signal(str)
 
@@ -22,14 +24,13 @@ class BarcodeScannerWidget(QFrame):
         super().__init__(parent)
         self.setObjectName("barcodeScanner")
         self.setFixedSize(270, 205)
-        self.setWindowFlags(Qt.Widget | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self._camera: QCamera | None = None
         self._session = QMediaCaptureSession()
         self._sink = QVideoSink(self)
         self._session.setVideoSink(self._sink)
         self._last_code = ""
-        self._last_emit_ms = 0
+        self._last_code_at = 0.0
         self._build()
         self._sink.videoFrameChanged.connect(self._on_frame)
         QTimer.singleShot(0, self.start_camera)
@@ -64,12 +65,14 @@ class BarcodeScannerWidget(QFrame):
         if not devices:
             self.status.setText("لا توجد كاميرا")
             return
-        device = devices[0]
-        self._camera = QCamera(device, self)
+        self._camera = QCamera(devices[0], self)
         self._session.setCamera(self._camera)
-        self._camera.errorOccurred.connect(lambda _error, message: self.status.setText(message or "خطأ في الكاميرا"))
+        self._camera.errorOccurred.connect(self._camera_error)
         self._camera.start()
         self.status.setText("جاهز للمسح")
+
+    def _camera_error(self, _error, message):
+        self.status.setText(message or "خطأ في الكاميرا")
 
     def _on_frame(self, frame: QVideoFrame):
         if not frame.isValid():
@@ -85,8 +88,7 @@ class BarcodeScannerWidget(QFrame):
             self.status.setText("قارئ الباركود غير مثبت")
             return
         try:
-            bits = image.bits()
-            array = np.frombuffer(bits, dtype=np.uint8)
+            array = np.frombuffer(image.bits(), dtype=np.uint8)
             array = array.reshape((image.height(), image.bytesPerLine()))[:, : image.width() * 3]
             array = array.reshape((image.height(), image.width(), 3))
             results = decode_barcodes(array)
@@ -97,18 +99,14 @@ class BarcodeScannerWidget(QFrame):
         code = results[0].data.decode("utf-8", errors="ignore").strip()
         if not code:
             return
-        now = QTimer().remainingTime()  # placeholder-free monotonic gate below
-        del now
-        if code == self._last_code:
+        now = monotonic()
+        if code == self._last_code and now - self._last_code_at < 0.45:
             return
         self._last_code = code
+        self._last_code_at = now
         self.code_label.setText(f"الباركود: {code}")
         self.status.setText("تمت القراءة")
         self.barcode_detected.emit(code)
-        QTimer.singleShot(1200, self._clear_last_code)
-
-    def _clear_last_code(self):
-        self._last_code = ""
 
     def toggle(self):
         if self.isVisible():
