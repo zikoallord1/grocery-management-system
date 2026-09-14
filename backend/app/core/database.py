@@ -76,6 +76,21 @@ def _ensure_default_finance_setup():
                 )
             )
 
+        from backend.app.core.models import StockLocation
+
+        location = session.execute(
+            select(StockLocation).where(StockLocation.code == "MAIN")
+        ).scalar_one_or_none()
+        if location is None:
+            session.add(
+                StockLocation(
+                    code="MAIN",
+                    name="المخزن الرئيسي",
+                    location_type="STORE",
+                    is_active=True,
+                )
+            )
+
         session.commit()
 
     finally:
