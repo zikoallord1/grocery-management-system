@@ -1,10 +1,11 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 
 from sqlalchemy import case, func, select
-from sqlalchemy.exc import IntegrityError
 
 from backend.app.core.database import get_session
 from backend.app.core.models import Customer, CustomerAccountMovement, CustomerPayment
+from backend.app.application.business_engine import BusinessEngine
+from backend.app.domain.business_events import BusinessEvent
 
 
 class CustomerError(Exception):
@@ -20,9 +21,10 @@ class DuplicateCustomerOperationError(CustomerError):
 
 
 class CustomerService:
-    def __init__(self, session=None):
+    def __init__(self, session=None, business_engine=None):
         self._session = session
         self._owns_session = session is None
+        self._business_engine = business_engine or BusinessEngine()
 
     def _get_session(self):
         if self._session is None:
@@ -33,10 +35,8 @@ class CustomerService:
         session = self._get_session()
 
         signed = case(
-            (CustomerAccountMovement.direction == "DEBIT",
-             CustomerAccountMovement.amount),
-            (CustomerAccountMovement.direction == "CREDIT",
-             -CustomerAccountMovement.amount),
+            (CustomerAccountMovement.direction == "DEBIT", CustomerAccountMovement.amount),
+            (CustomerAccountMovement.direction == "CREDIT", -CustomerAccountMovement.amount),
             else_=0,
         )
 
@@ -74,20 +74,13 @@ class CustomerService:
         ).scalar_one_or_none()
 
         if existing is not None:
-            raise DuplicateCustomerOperationError(
-                "Duplicate customer account operation."
-            )
+            raise DuplicateCustomerOperationError("Duplicate customer account operation.")
 
         current = self.get_balance(customer_id)
         new_balance = current + amount
 
-        if (
-            customer.credit_limit is not None
-            and new_balance > Decimal(str(customer.credit_limit))
-        ):
-            raise CustomerCreditError(
-                "Customer credit limit would be exceeded."
-            )
+        if customer.credit_limit is not None and new_balance > Decimal(str(customer.credit_limit)):
+            raise CustomerCreditError("Customer credit limit would be exceeded.")
 
         movement = CustomerAccountMovement(
             customer_id=customer_id,
@@ -104,7 +97,21 @@ class CustomerService:
 
         session.add(movement)
         session.flush()
-
+        self._business_engine.process(
+            session,
+            BusinessEvent(
+                event_type="CUSTOMER_SALE_CREDIT_REGISTERED",
+                operation_id=idempotency_key,
+                payload={
+                    "entity_type": "CUSTOMER",
+                    "entity_id": customer_id,
+                    "created_by": created_by,
+                    "reference_id": reference_id,
+                    "amount": str(amount),
+                    "business_date": business_date,
+                },
+            ),
+        )
         return movement
 
     def receive_payment(
@@ -134,16 +141,12 @@ class CustomerService:
         ).scalar_one_or_none()
 
         if existing is not None:
-            raise DuplicateCustomerOperationError(
-                "Duplicate customer payment."
-            )
+            raise DuplicateCustomerOperationError("Duplicate customer payment.")
 
         current = self.get_balance(customer_id)
 
         if amount > current:
-            raise CustomerError(
-                f"Payment exceeds outstanding balance: balance={current}"
-            )
+            raise CustomerError(f"Payment exceeds outstanding balance: balance={current}")
 
         payment = CustomerPayment(
             customer_id=customer_id,
@@ -171,5 +174,21 @@ class CustomerService:
 
         session.add_all([payment, movement])
         session.flush()
-
+        self._business_engine.process(
+            session,
+            BusinessEvent(
+                event_type="CUSTOMER_PAYMENT_RECEIVED",
+                operation_id=idempotency_key,
+                payload={
+                    "entity_type": "CUSTOMER_PAYMENT",
+                    "entity_id": payment.id,
+                    "customer_id": customer_id,
+                    "created_by": created_by,
+                    "amount": str(amount),
+                    "payment_method": payment_method,
+                    "business_date": business_date,
+                    "reference_no": reference_no,
+                },
+            ),
+        )
         return payment
