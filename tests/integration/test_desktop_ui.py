@@ -23,7 +23,6 @@ def test_main_window_builds_in_offscreen_mode():
     initialize_database()
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
-
     assert window.windowTitle() == "نظام إدارة البقالات"
     assert window.layoutDirection() == Qt.RightToLeft
     assert isinstance(window._pages["المخزون"], InventoryPage)
@@ -31,6 +30,7 @@ def test_main_window_builds_in_offscreen_mode():
     assert window._pages["المخزون"].movement_table.columnCount() == 7
     assert isinstance(window._pages["المبيعات"], SalesPage)
     assert window._pages["المبيعات"].product is not None
+    assert window._pages["المبيعات"].history.columnCount() == 7
     assert isinstance(window._pages["المشتريات"], PurchasesPage)
     assert window._pages["المشتريات"].history.columnCount() == 7
     assert window._pages["المشتريات"].product is not None
@@ -45,13 +45,11 @@ def test_main_window_builds_in_offscreen_mode():
     assert isinstance(window._pages["المرتجعات"], ReturnsPage)
     assert isinstance(window._pages["التقارير"], ReportsPage)
     assert window._pages["التقارير"].table.columnCount() == 2
-
     products = ProductsPage()
     assert products.table.columnCount() == 7
     assert products.barcode is not None
     assert products.category is not None
     assert products.selected_product_id is None
     products.close()
-
     window.close()
     app.processEvents()
