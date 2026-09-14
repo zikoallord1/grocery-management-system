@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 from sqlalchemy import select
 
 from backend.app.core.database import get_session
-from backend.app.core.models import Product, Purchase, StockLocation, Supplier
+from backend.app.core.models import Product, Purchase, PurchaseItem, StockLocation, Supplier
 from backend.app.modules.finance.models import PaymentMethod
 from backend.app.modules.purchases.service import PurchaseService
 
@@ -60,7 +60,6 @@ class PurchasesPage(QWidget):
         title.setObjectName("pageTitle")
         root.addWidget(title)
         root.addWidget(QLabel("إدخال فاتورة شراء وربطها تلقائيًا بالمخزون والمورد والصندوق."))
-
         form = QFormLayout()
         form.addRow("رقم الفاتورة", self.document_no)
         form.addRow("المورد", self.supplier)
@@ -72,7 +71,6 @@ class PurchasesPage(QWidget):
         form.addRow("المدفوع الآن", self.payment)
         form.addRow("إجمالي الفاتورة", self.total)
         root.addLayout(form)
-
         buttons = QHBoxLayout()
         save = QPushButton("حفظ وتأكيد فاتورة الشراء")
         save.setObjectName("primaryButton")
@@ -89,7 +87,6 @@ class PurchasesPage(QWidget):
         root.addLayout(buttons)
         root.addWidget(QLabel("آخر فواتير الشراء"))
         root.addWidget(self.history, 1)
-
         self.product.currentIndexChanged.connect(self._product_changed)
         self.quantity.valueChanged.connect(self._update_total)
         self.unit_cost.valueChanged.connect(self._update_total)
@@ -145,7 +142,6 @@ class PurchasesPage(QWidget):
         if paid > 0 and method is None:
             QMessageBox.warning(self, "وسيلة الدفع مطلوبة", "اختر وسيلة الدفع للمبلغ المدفوع.")
             return
-
         session = get_session()
         try:
             document_no = f"P-{date.today().strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}"
@@ -179,21 +175,19 @@ class PurchasesPage(QWidget):
         try:
             self._load_selectors(session)
             rows = session.execute(
-                select(Purchase, Supplier, Product)
+                select(Purchase, Supplier, Product, PurchaseItem.quantity)
                 .outerjoin(Supplier, Supplier.id == Purchase.supplier_id)
-                .join(__import__('backend.app.core.models', fromlist=['PurchaseItem']).PurchaseItem, __import__('backend.app.core.models', fromlist=['PurchaseItem']).PurchaseItem.purchase_id == Purchase.id)
-                .join(Product, Product.id == __import__('backend.app.core.models', fromlist=['PurchaseItem']).PurchaseItem.product_id)
+                .join(PurchaseItem, PurchaseItem.purchase_id == Purchase.id)
+                .join(Product, Product.id == PurchaseItem.product_id)
                 .order_by(Purchase.id.desc())
                 .limit(100)
             ).all()
             self.history.setRowCount(len(rows))
-            for r, (purchase, supplier, product) in enumerate(rows):
-                values = [purchase.business_date, purchase.document_no, supplier.name if supplier else "نقدي", product.name, f"{purchase.total / max(Decimal('0.001'), Decimal(str(purchase.total / max(Decimal('0.001'), Decimal(str(purchase.total)))))):,.3f}" if False else "", f"{purchase.total:,.2f}", purchase.payment_status]
-                # Show the actual first-line quantity without complicating the purchase list query.
-                values[4] = "متعدد/واحد"
+            for r, (purchase, supplier, product, quantity) in enumerate(rows):
+                values = [purchase.business_date, purchase.document_no, supplier.name if supplier else "نقدي", product.name, f"{quantity:,.3f}", f"{purchase.total:,.2f}", purchase.payment_status]
                 for c, value in enumerate(values):
                     self.history.setItem(r, c, QTableWidgetItem(str(value)))
             self.history.resizeColumnsToContents()
         finally:
             session.close()
-        self.document_no.setText(f"سيُولد تلقائيًا عند الحفظ")
+        self.document_no.setText("سيُولد تلقائيًا عند الحفظ")
