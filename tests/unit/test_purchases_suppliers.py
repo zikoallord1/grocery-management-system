@@ -221,6 +221,10 @@ def test_supplier_payment_reduces_balance():
             idempotency_key=str(uuid4()),
         )
 
+        cashbox = session.execute(select(__import__('backend.app.modules.finance.models', fromlist=['Cashbox']).Cashbox).where(__import__('backend.app.modules.finance.models', fromlist=['Cashbox']).Cashbox.code == 'CASH')).scalar_one()
+        from backend.app.modules.finance.service import CashboxService
+        before_cash = CashboxService(session).get_balance(cashbox.id)
+
         service.make_payment(
             supplier_id=supplier.id,
             amount=Decimal("200"),
@@ -230,6 +234,7 @@ def test_supplier_payment_reduces_balance():
         )
 
         assert service.get_balance(supplier.id) == Decimal("300.00")
+        assert CashboxService(session).get_balance(cashbox.id) == before_cash - Decimal("200.00")
     finally:
         session.close()
 
