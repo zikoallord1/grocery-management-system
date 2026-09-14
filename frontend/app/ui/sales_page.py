@@ -3,6 +3,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPageSize, QTextDocument
+from PySide6.QtPrintSupport import QPrintPreviewDialog, QPrinter
 from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from sqlalchemy import select
 
@@ -32,7 +34,7 @@ class SalesPage(QWidget):
         root=QVBoxLayout(self); title=QLabel("فاتورة بيع جديدة"); title.setObjectName("pageTitle"); root.addWidget(title)
         description=QLabel("اختر الصنف والكمية، وسيقوم النظام بربط الفاتورة بالمخزون والصندوق وذمم العميل عند الحاجة."); description.setWordWrap(True); description.setObjectName("pageDescription"); root.addWidget(description)
         form=QFormLayout(); form.addRow("الصنف",self.product); form.addRow("الكمية",self.quantity); form.addRow("سعر البيع",self.price); form.addRow("العميل",self.customer); form.addRow("المبلغ المدفوع",self.payment); form.addRow("الإجمالي",self.total_label); form.addRow("الرصيد المتاح",self.stock_label); root.addLayout(form)
-        buttons=QHBoxLayout(); save=QPushButton("حفظ وتأكيد الفاتورة"); save.setObjectName("primaryButton"); save.clicked.connect(self.create_sale); refresh=QPushButton("تحديث الأصناف"); refresh.clicked.connect(self.refresh_data); back=QPushButton("العودة إلى الرئيسية"); back.setObjectName("secondaryButton"); back.clicked.connect(self.back_requested.emit); buttons.addWidget(save); buttons.addWidget(refresh); buttons.addWidget(back); root.addLayout(buttons)
+        buttons=QHBoxLayout(); save=QPushButton("حفظ وتأكيد الفاتورة"); save.setObjectName("primaryButton"); save.clicked.connect(self.create_sale); preview=QPushButton("معاينة/طباعة الفاتورة المحددة"); preview.clicked.connect(self.preview_selected); refresh=QPushButton("تحديث الأصناف"); refresh.clicked.connect(self.refresh_data); back=QPushButton("العودة إلى الرئيسية"); back.setObjectName("secondaryButton"); back.clicked.connect(self.back_requested.emit); buttons.addWidget(save); buttons.addWidget(preview); buttons.addWidget(refresh); buttons.addWidget(back); root.addLayout(buttons)
         root.addWidget(QLabel("آخر فواتير البيع")); root.addWidget(self.history,1)
         self.product.currentIndexChanged.connect(self.product_changed); self.quantity.valueChanged.connect(self.recalculate); self.price.valueChanged.connect(self.recalculate); self.payment.valueChanged.connect(self.recalculate)
 
@@ -86,3 +88,28 @@ class SalesPage(QWidget):
             session.commit(); QMessageBox.information(self,"تم الحفظ",f"تم تأكيد فاتورة البيع رقم {sale.document_no} بإجمالي {sale.total:,.2f}."); self.payment.setValue(float(total)); self.refresh_data()
         except Exception as exc: session.rollback(); QMessageBox.critical(self,"تعذر حفظ الفاتورة",str(exc))
         finally: session.close()
+
+    def preview_selected(self):
+        row = self.history.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "اختيار الفاتورة", "حدد فاتورة من سجل المبيعات أولًا.")
+            return
+        document_no = self.history.item(row, 1).text()
+        session = get_session()
+        try:
+            sale = session.scalar(select(Sale).where(Sale.document_no == document_no))
+            if sale is None:
+                QMessageBox.warning(self, "الفاتورة غير موجودة", "تعذر العثور على الفاتورة المحددة.")
+                return
+            customer = session.get(Customer, sale.customer_id) if sale.customer_id else None
+            lines = session.execute(select(Product.name, SaleItem.quantity, SaleItem.unit_price, SaleItem.line_total).join(Product, Product.id == SaleItem.product_id).where(SaleItem.sale_id == sale.id)).all()
+            rows = [(name, f"{quantity:,.3f}", unit_price, line_total) for name, quantity, unit_price, line_total in lines]
+            printer = QPrinter(QPrinter.HighResolution); printer.setPageSize(QPageSize(QPageSize.A4))
+            preview = QPrintPreviewDialog(printer, self); preview.setWindowTitle(f"معاينة فاتورة البيع {sale.document_no}")
+            def render(target):
+                document = QTextDocument()
+                html = f"<html><head><meta charset='utf-8'><style>body{{font-family:Arial;direction:rtl}}h1{{text-align:center}}table{{width:100%;border-collapse:collapse}}th,td{{border:1px solid #777;padding:7px;text-align:right}}.brand{{text-align:center;margin-top:30px;font-size:11px}}</style></head><body><h1>فاتورة بيع</h1><p><b>رقم الفاتورة:</b> {sale.document_no}<br><b>التاريخ:</b> {sale.business_date}<br><b>العميل:</b> {customer.name if customer else 'نقدي'}</p><table><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>{''.join(f'<tr><td>{n}</td><td>{q}</td><td>{p:,.2f}</td><td>{t:,.2f}</td></tr>' for n,q,p,t in rows)}</table><p><b>الإجمالي:</b> {sale.total:,.2f}<br><b>المدفوع:</b> {sale.paid_amount:,.2f}<br><b>المتبقي:</b> {sale.credit_amount:,.2f}</p><div class='brand'>نظام إدارة البقالات<br>تصميم وتنفيذ المهندس / زكريا الحاج<br>لطلب البرنامج او تقديم المساعدة او طلب برامج اخرى التواصل على الرقم 772233564</div></body></html>"
+                document.setHtml(html); document.print_(target)
+            preview.paintRequested.connect(render); preview.resize(900, 700); preview.exec()
+        finally:
+            session.close()
