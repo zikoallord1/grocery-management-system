@@ -40,9 +40,15 @@ class PurchasesPage(QWidget):
         self.payment = QDoubleSpinBox(); self.payment.setDecimals(2); self.payment.setMaximum(999999999)
         self.document_no = QLabel()
         self.total = QLabel("0.00")
+        self.paid_label = QLabel("0.00")
+        self.remaining_label = QLabel("0.00")
+        self.payment_lines = []
         self.lines = QTableWidget(0, 5)
         self.lines.setHorizontalHeaderLabels(["الصنف", "الكمية", "تكلفة الوحدة", "الإجمالي", "المخزن"])
         self.lines.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.payments_table = QTableWidget(0, 2)
+        self.payments_table.setHorizontalHeaderLabels(["وسيلة الدفع", "المبلغ"])
+        self.payments_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.history = QTableWidget(0, 7)
         self.history.setHorizontalHeaderLabels(["التاريخ", "رقم الفاتورة", "المورد", "الصنف", "الكمية", "الإجمالي", "الحالة"])
         self.history.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -52,8 +58,7 @@ class PurchasesPage(QWidget):
     def _build(self):
         root = QVBoxLayout(self)
         title = QLabel("المشتريات"); title.setObjectName("pageTitle"); root.addWidget(title)
-        root.addWidget(QLabel("أنشئ فاتورة شراء متعددة الأصناف، وسيقوم النظام بربطها تلقائيًا بالمخزون والمورد والصندوق."))
-
+        root.addWidget(QLabel("أنشئ فاتورة شراء متعددة الأصناف، ويمكن تقسيم المبلغ بين النقد والمحفظة والتحويل البنكي أو تركه آجلًا."))
         form = QFormLayout()
         form.addRow("رقم الفاتورة", self.document_no)
         form.addRow("المورد", self.supplier)
@@ -61,10 +66,7 @@ class PurchasesPage(QWidget):
         form.addRow("المخزن", self.location)
         form.addRow("الكمية", self.quantity)
         form.addRow("تكلفة الوحدة", self.unit_cost)
-        form.addRow("وسيلة الدفع", self.payment_method)
-        form.addRow("المدفوع الآن", self.payment)
         root.addLayout(form)
-
         line_buttons = QHBoxLayout()
         add_line = QPushButton("إضافة الصنف إلى الفاتورة"); add_line.setObjectName("primaryButton"); add_line.clicked.connect(self.add_line)
         remove_line = QPushButton("حذف السطر المحدد"); remove_line.clicked.connect(self.remove_line)
@@ -72,7 +74,22 @@ class PurchasesPage(QWidget):
         line_buttons.addWidget(add_line); line_buttons.addWidget(remove_line); line_buttons.addWidget(clear_lines); line_buttons.addStretch()
         root.addLayout(line_buttons)
         root.addWidget(QLabel("أصناف الفاتورة الحالية")); root.addWidget(self.lines)
-
+        payment_form = QFormLayout()
+        payment_form.addRow("وسيلة الدفع الحالية", self.payment_method)
+        payment_form.addRow("مبلغ الدفع", self.payment)
+        root.addLayout(payment_form)
+        payment_buttons = QHBoxLayout()
+        add_payment = QPushButton("إضافة دفعة"); add_payment.clicked.connect(self.add_payment)
+        remove_payment = QPushButton("حذف الدفعة المحددة"); remove_payment.clicked.connect(self.remove_payment)
+        clear_payments = QPushButton("مسح الدفعات"); clear_payments.clicked.connect(self.clear_payments)
+        payment_buttons.addWidget(add_payment); payment_buttons.addWidget(remove_payment); payment_buttons.addWidget(clear_payments); payment_buttons.addStretch()
+        root.addLayout(payment_buttons)
+        root.addWidget(self.payments_table)
+        summary = QFormLayout()
+        summary.addRow("إجمالي الفاتورة", self.total)
+        summary.addRow("إجمالي المدفوع", self.paid_label)
+        summary.addRow("المتبقي", self.remaining_label)
+        root.addLayout(summary)
         buttons = QHBoxLayout()
         save = QPushButton("حفظ وتأكيد فاتورة الشراء"); save.setObjectName("primaryButton"); save.clicked.connect(self.save_purchase)
         preview = QPushButton("معاينة/طباعة الفاتورة المحددة"); preview.clicked.connect(self.preview_selected)
@@ -81,10 +98,10 @@ class PurchasesPage(QWidget):
         buttons.addWidget(save); buttons.addWidget(preview); buttons.addWidget(refresh); buttons.addStretch(); buttons.addWidget(back)
         root.addLayout(buttons)
         root.addWidget(QLabel("آخر فواتير الشراء")); root.addWidget(self.history, 1)
-
         self.product.currentIndexChanged.connect(self._product_changed)
         self.quantity.valueChanged.connect(self._update_total)
         self.unit_cost.valueChanged.connect(self._update_total)
+        self.payment.valueChanged.connect(self._update_total)
 
     def _product_changed(self):
         session = get_session()
@@ -96,14 +113,21 @@ class PurchasesPage(QWidget):
             session.close()
         self._update_total()
 
-    def _update_total(self):
-        self.total.setText(f"{self._invoice_total() + Decimal(str(self.quantity.value() * self.unit_cost.value())).quantize(Decimal('0.01')):,.2f}" if self.lines.rowCount() else f"{self.quantity.value() * self.unit_cost.value():,.2f}")
-
     def _invoice_total(self):
-        total = Decimal("0")
-        for row in range(self.lines.rowCount()):
-            total += Decimal(self.lines.item(row, 3).data(Qt.UserRole) or "0")
-        return total
+        return sum((Decimal(self.lines.item(row, 3).data(Qt.UserRole) or "0") for row in range(self.lines.rowCount())), Decimal("0")).quantize(Decimal("0.01"))
+
+    def _payments_total(self):
+        return sum((line["amount"] for line in self.payment_lines), Decimal("0"))
+
+    def _update_total(self):
+        total = self._invoice_total()
+        if not self.payment_lines and self.payment.value() == 0 and total > 0:
+            self.payment.setValue(float(total))
+        current = Decimal(str(self.payment.value())).quantize(Decimal("0.01"))
+        paid = self._payments_total() + current
+        self.total.setText(f"{total:,.2f}")
+        self.paid_label.setText(f"{paid:,.2f}")
+        self.remaining_label.setText(f"{max(total - paid, Decimal('0')):,.2f}")
 
     def add_line(self):
         product_id = self.product.currentData(); location_id = self.location.currentData()
@@ -127,8 +151,7 @@ class PurchasesPage(QWidget):
                     self._update_total(); return
             row = self.lines.rowCount(); self.lines.insertRow(row)
             values = [product.name, f"{quantity:,.3f}", f"{unit_cost:,.2f}", f"{quantity * unit_cost:,.2f}", location.name]
-            for col, value in enumerate(values):
-                item = QTableWidgetItem(value); self.lines.setItem(row, col, item)
+            for col, value in enumerate(values): self.lines.setItem(row, col, QTableWidgetItem(value))
             self.lines.item(row, 0).setData(Qt.UserRole, product_id)
             self.lines.item(row, 1).setData(Qt.UserRole, str(quantity))
             self.lines.item(row, 2).setData(Qt.UserRole, str(unit_cost))
@@ -140,51 +163,60 @@ class PurchasesPage(QWidget):
 
     def remove_line(self):
         row = self.lines.currentRow()
-        if row >= 0:
-            self.lines.removeRow(row); self._update_total()
+        if row >= 0: self.lines.removeRow(row); self._update_total()
 
     def clear_lines(self):
-        self.lines.setRowCount(0); self._update_total()
+        self.lines.setRowCount(0); self.clear_payments(); self._update_total()
 
     def _build_items(self):
-        items = []
-        for row in range(self.lines.rowCount()):
-            items.append({
-                "product_id": self.lines.item(row, 0).data(Qt.UserRole),
-                "quantity": Decimal(self.lines.item(row, 1).data(Qt.UserRole)),
-                "unit_cost": Decimal(self.lines.item(row, 2).data(Qt.UserRole)),
-                "discount": Decimal("0"),
-                "stock_location_id": self.lines.item(row, 4).data(Qt.UserRole),
-            })
-        return items
+        return [{"product_id": self.lines.item(row, 0).data(Qt.UserRole), "quantity": Decimal(self.lines.item(row, 1).data(Qt.UserRole)), "unit_cost": Decimal(self.lines.item(row, 2).data(Qt.UserRole)), "discount": Decimal("0"), "stock_location_id": self.lines.item(row, 4).data(Qt.UserRole)} for row in range(self.lines.rowCount())]
+
+    def add_payment(self):
+        method = self.payment_method.currentData(); amount = Decimal(str(self.payment.value())).quantize(Decimal("0.01")); total = self._invoice_total()
+        if not self.lines: QMessageBox.warning(self, "الفاتورة فارغة", "أضف أصناف الفاتورة أولًا."); return
+        if not method or amount <= 0: QMessageBox.warning(self, "دفعة غير صحيحة", "اختر وسيلة دفع وأدخل مبلغًا أكبر من صفر."); return
+        if self._payments_total() + amount > total: QMessageBox.warning(self, "مبلغ زائد", "مجموع الدفعات لا يمكن أن يتجاوز إجمالي الفاتورة."); return
+        self.payment_lines.append({"payment_method": method, "amount": amount}); self.refresh_payments_table(); self.payment.setValue(0)
+
+    def refresh_payments_table(self):
+        self.payments_table.setRowCount(len(self.payment_lines))
+        session = get_session()
+        try: names = {m.code: m.name for m in session.scalars(select(PaymentMethod)).all()}
+        finally: session.close()
+        for row, line in enumerate(self.payment_lines):
+            self.payments_table.setItem(row, 0, QTableWidgetItem(names.get(line["payment_method"], line["payment_method"])))
+            self.payments_table.setItem(row, 1, QTableWidgetItem(f"{line['amount']:,.2f}"))
+        self.payments_table.resizeColumnsToContents(); self._update_total()
+
+    def remove_payment(self):
+        row = self.payments_table.currentRow()
+        if row >= 0: self.payment_lines.pop(row); self.refresh_payments_table()
+
+    def clear_payments(self):
+        self.payment_lines.clear(); self.payments_table.setRowCount(0); self.payment.setValue(0); self._update_total()
 
     def save_purchase(self):
         if self.lines.rowCount() == 0:
             QMessageBox.warning(self, "الفاتورة فارغة", "أضف صنفًا واحدًا على الأقل إلى الفاتورة."); return
         supplier_id = self.supplier.currentData(); items = self._build_items()
-        total = self._invoice_total().quantize(Decimal("0.01")); paid = Decimal(str(self.payment.value())).quantize(Decimal("0.01"))
+        total = self._invoice_total(); payments = list(self.payment_lines)
+        current_amount = Decimal(str(self.payment.value())).quantize(Decimal("0.01"))
+        if current_amount > 0:
+            payments.append({"payment_method": self.payment_method.currentData() or "CASH", "amount": current_amount})
+        paid = sum((p["amount"] for p in payments), Decimal("0"))
         if total <= 0: QMessageBox.warning(self, "قيمة غير صحيحة", "يجب أن تكون قيمة الفاتورة أكبر من صفر."); return
         if paid > total: QMessageBox.warning(self, "مبلغ غير صحيح", "المدفوع لا يمكن أن يتجاوز إجمالي الفاتورة."); return
         if paid < total and supplier_id is None: QMessageBox.warning(self, "المورد مطلوب", "الفاتورة الآجلة أو الجزئية تحتاج إلى مورد."); return
-        method = self.payment_method.currentData()
-        if paid > 0 and method is None: QMessageBox.warning(self, "وسيلة الدفع مطلوبة", "اختر وسيلة الدفع للمبلغ المدفوع."); return
+        if paid > 0 and any(not p.get("payment_method") for p in payments): QMessageBox.warning(self, "وسيلة الدفع مطلوبة", "اختر وسيلة الدفع للمبلغ المدفوع."); return
         session = get_session()
         try:
             document_no = f"P-{date.today().strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}"
-            PurchaseService(session).create_purchase(
-                document_no=document_no,
-                business_date=date.today().isoformat(),
-                supplier_id=supplier_id,
-                items=items,
-                payments=([{"payment_method": method, "amount": paid, "currency": "BASE"}] if paid > 0 else []),
-                idempotency_key=str(uuid4()),
-            )
+            PurchaseService(session).create_purchase(document_no=document_no, business_date=date.today().isoformat(), supplier_id=supplier_id, items=items, payments=[{"payment_method": p["payment_method"], "amount": str(p["amount"]), "currency": "BASE"} for p in payments], idempotency_key=str(uuid4()))
             session.commit(); QMessageBox.information(self, "تم الحفظ", f"تم تأكيد فاتورة الشراء {document_no} بإجمالي {total:,.2f} وربطها بالمخزون.")
-            self.clear_lines(); self.payment.setValue(0); self.refresh()
+            self.clear_lines(); self.refresh()
         except Exception as exc:
             session.rollback(); QMessageBox.critical(self, "تعذر الحفظ", str(exc))
-        finally:
-            session.close()
+        finally: session.close()
 
     def _load_selectors(self, session):
         self.product.clear()
@@ -193,8 +225,11 @@ class PurchasesPage(QWidget):
         for s in session.scalars(select(Supplier).where(Supplier.is_active.is_(True)).order_by(Supplier.name)).all(): self.supplier.addItem(f"{s.code} — {s.name}", s.id)
         self.location.clear()
         for location in session.scalars(select(StockLocation).where(StockLocation.is_active.is_(True)).order_by(StockLocation.name)).all(): self.location.addItem(f"{location.code} — {location.name}", location.id)
-        self.payment_method.clear(); self.payment_method.addItem("بدون دفع / آجل", None)
+        current_method = self.payment_method.currentData(); self.payment_method.clear()
         for method in session.scalars(select(PaymentMethod).where(PaymentMethod.is_active.is_(True)).order_by(PaymentMethod.code)).all(): self.payment_method.addItem(f"{method.code} — {method.name}", method.code)
+        if current_method is not None:
+            idx = self.payment_method.findData(current_method)
+            if idx >= 0: self.payment_method.setCurrentIndex(idx)
 
     def refresh(self):
         session = get_session()
@@ -205,8 +240,7 @@ class PurchasesPage(QWidget):
             for r, (purchase, supplier, product, quantity) in enumerate(rows):
                 for c, value in enumerate([purchase.business_date, purchase.document_no, supplier.name if supplier else "نقدي", product.name, f"{quantity:,.3f}", f"{purchase.total:,.2f}", purchase.payment_status]): self.history.setItem(r, c, QTableWidgetItem(str(value)))
             self.history.resizeColumnsToContents()
-        finally:
-            session.close()
+        finally: session.close()
         self.document_no.setText("سيُولد تلقائيًا عند الحفظ")
         self._update_total()
 
@@ -223,5 +257,4 @@ class PurchasesPage(QWidget):
             lines = session.execute(select(Product.name, PurchaseItem.quantity, PurchaseItem.unit_cost, PurchaseItem.line_total).join(Product, Product.id == PurchaseItem.product_id).where(PurchaseItem.purchase_id == purchase.id)).all()
             rows = [(name, f"{quantity:,.3f}", unit_cost, line_total) for name, quantity, unit_cost, line_total in lines]
             show_invoice_preview(self, title="فاتورة شراء", document_no=purchase.document_no, business_date=purchase.business_date, party_label="المورد", party_name=supplier.name if supplier else "شراء نقدي", rows=rows, total=purchase.total, paid=purchase.paid_amount, credit=purchase.credit_amount, kind="الشراء")
-        finally:
-            session.close()
+        finally: session.close()
