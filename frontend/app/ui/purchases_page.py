@@ -3,8 +3,6 @@ from decimal import Decimal
 from uuid import uuid4
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPageSize, QTextDocument
-from PySide6.QtPrintSupport import QPrintPreviewDialog, QPrinter
 from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from sqlalchemy import select
 
@@ -12,6 +10,7 @@ from backend.app.core.database import get_session
 from backend.app.core.models import Product, Purchase, PurchaseItem, StockLocation, Supplier
 from backend.app.modules.finance.models import PaymentMethod
 from backend.app.modules.purchases.service import PurchaseService
+from frontend.app.ui.invoice_preview import show_invoice_preview
 
 
 class PurchasesPage(QWidget):
@@ -89,8 +88,6 @@ class PurchasesPage(QWidget):
             if purchase is None: QMessageBox.warning(self,"الفاتورة غير موجودة","تعذر العثور على الفاتورة المحددة."); return
             supplier=session.get(Supplier,purchase.supplier_id) if purchase.supplier_id else None
             lines=session.execute(select(Product.name,PurchaseItem.quantity,PurchaseItem.unit_cost,PurchaseItem.line_total).join(Product,Product.id==PurchaseItem.product_id).where(PurchaseItem.purchase_id==purchase.id)).all()
-            printer=QPrinter(QPrinter.HighResolution); printer.setPageSize(QPageSize(QPageSize.A4)); preview=QPrintPreviewDialog(printer,self); preview.setWindowTitle(f"معاينة فاتورة الشراء {purchase.document_no}")
-            def render(target):
-                document=QTextDocument(); html=f"<html><head><meta charset='utf-8'><style>body{{font-family:Arial;direction:rtl}}h1{{text-align:center}}table{{width:100%;border-collapse:collapse}}th,td{{border:1px solid #777;padding:7px;text-align:right}}.brand{{text-align:center;margin-top:30px;font-size:11px}}</style></head><body><h1>فاتورة شراء</h1><p><b>رقم الفاتورة:</b> {purchase.document_no}<br><b>التاريخ:</b> {purchase.business_date}<br><b>المورد:</b> {supplier.name if supplier else 'نقدي'}</p><table><tr><th>الصنف</th><th>الكمية</th><th>التكلفة</th><th>الإجمالي</th></tr>{''.join(f'<tr><td>{n}</td><td>{q}</td><td>{c:,.2f}</td><td>{t:,.2f}</td></tr>' for n,q,c,t in lines)}</table><p><b>الإجمالي:</b> {purchase.total:,.2f}<br><b>المدفوع:</b> {purchase.paid_amount:,.2f}<br><b>المتبقي:</b> {purchase.credit_amount:,.2f}</p><div class='brand'>نظام إدارة البقالات<br>تصميم وتنفيذ المهندس / زكريا الحاج<br>لطلب البرنامج او تقديم المساعدة او طلب برامج اخرى التواصل على الرقم 772233564</div></body></html>"; document.setHtml(html); document.print_(target)
-            preview.paintRequested.connect(render); preview.resize(900,700); preview.exec()
+            rows=[(name,f"{quantity:,.3f}",unit_cost,line_total) for name,quantity,unit_cost,line_total in lines]
+            show_invoice_preview(self,title="فاتورة شراء",document_no=purchase.document_no,business_date=purchase.business_date,party_label="المورد",party_name=supplier.name if supplier else "شراء نقدي",rows=rows,total=purchase.total,paid=purchase.paid_amount,credit=purchase.credit_amount,kind="الشراء")
         finally: session.close()
