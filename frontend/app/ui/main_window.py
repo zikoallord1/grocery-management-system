@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QMainWin
 from backend.app.core.database import get_session
 from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
+from frontend.app.ui.inventory_page import InventoryPage
 from frontend.app.ui.products_page import ProductsPage
 from frontend.app.ui.sales_page import SalesPage
 
@@ -55,7 +56,7 @@ class MainWindow(QMainWindow):
         }
         for name, (ptitle, desc, actions) in specs.items():
             if name == "المخزون":
-                page = ProductsPage()
+                page = InventoryPage()
             elif name == "المبيعات":
                 page = SalesPage()
             else:
