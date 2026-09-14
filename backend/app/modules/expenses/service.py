@@ -1,15 +1,12 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 
 from sqlalchemy import select
 
 from backend.app.core.database import get_session
-from backend.app.modules.finance.models import (
-    Expense,
-    ExpenseCategory,
-    ExpensePayment,
-    PaymentMethod,
-)
+from backend.app.modules.finance.models import Expense, ExpenseCategory, ExpensePayment, PaymentMethod
 from backend.app.modules.finance.service import CashboxService
+from backend.app.application.business_engine import BusinessEngine
+from backend.app.domain.business_events import BusinessEvent
 
 
 class ExpenseError(Exception):
@@ -21,9 +18,10 @@ class DuplicateExpenseError(ExpenseError):
 
 
 class ExpenseService:
-    def __init__(self, session=None):
+    def __init__(self, session=None, business_engine=None):
         self._session = session or get_session()
         self._owns_session = session is None
+        self._business_engine = business_engine or BusinessEngine()
 
     def create_expense(
         self,
@@ -41,9 +39,7 @@ class ExpenseService:
             raise ExpenseError("Expense amount must be greater than zero.")
 
         if self._session.execute(
-            select(Expense.id).where(
-                Expense.idempotency_key == idempotency_key
-            )
+            select(Expense.id).where(Expense.idempotency_key == idempotency_key)
         ).scalar_one_or_none() is not None:
             raise DuplicateExpenseError("Duplicate expense.")
 
@@ -70,7 +66,6 @@ class ExpenseService:
             idempotency_key=idempotency_key,
             created_by=created_by,
         )
-
         self._session.add(expense)
         self._session.flush()
 
@@ -96,4 +91,21 @@ class ExpenseService:
         )
 
         self._session.flush()
+        self._business_engine.process(
+            self._session,
+            BusinessEvent(
+                event_type="EXPENSE_CONFIRMED",
+                operation_id=idempotency_key,
+                payload={
+                    "entity_type": "EXPENSE",
+                    "entity_id": expense.id,
+                    "created_by": created_by,
+                    "amount": str(amount),
+                    "category_id": category_id,
+                    "payment_method_id": payment_method_id,
+                    "business_date": business_date,
+                    "description": description,
+                },
+            ),
+        )
         return expense
