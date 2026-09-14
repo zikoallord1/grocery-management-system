@@ -43,38 +43,59 @@ def get_session():
 
 
 def _ensure_default_finance_setup():
-    from backend.app.modules.finance.models import Cashbox, PaymentMethod
+    from backend.app.modules.finance.models import Cashbox, ExpenseCategory, PaymentMethod
 
     session = SessionLocal()
 
     try:
-        cash = session.execute(
-            select(Cashbox).where(Cashbox.code == "CASH")
-        ).scalar_one_or_none()
+        defaults = [
+            ("CASH", "النقد", "CASH", None),
+            ("WALLET", "المحفظة الإلكترونية", "WALLET", "محفظة إلكترونية"),
+            ("BANK", "الحساب البنكي", "BANK", "حساب بنكي"),
+        ]
 
-        if cash is None:
-            cash = Cashbox(
-                code="CASH",
-                name="النقد",
-                account_type="CASH",
-                currency="BASE",
-            )
-            session.add(cash)
-            session.flush()
-
-        method = session.execute(
-            select(PaymentMethod).where(PaymentMethod.code == "CASH")
-        ).scalar_one_or_none()
-
-        if method is None:
-            session.add(
-                PaymentMethod(
-                    code="CASH",
-                    name="نقد",
-                    method_type="CASH",
-                    cashbox_id=cash.id,
+        cashboxes = {}
+        for code, name, account_type, provider_name in defaults:
+            cashbox = session.execute(
+                select(Cashbox).where(Cashbox.code == code)
+            ).scalar_one_or_none()
+            if cashbox is None:
+                cashbox = Cashbox(
+                    code=code,
+                    name=name,
+                    account_type=account_type,
+                    currency="BASE",
+                    provider_name=provider_name,
                 )
-            )
+                session.add(cashbox)
+                session.flush()
+            cashboxes[code] = cashbox
+
+        payment_defaults = [
+            ("CASH", "نقد", "CASH", "CASH"),
+            ("WALLET", "محفظة إلكترونية", "WALLET", "WALLET"),
+            ("BANK", "تحويل بنكي", "BANK", "BANK"),
+        ]
+        for code, name, method_type, cashbox_code in payment_defaults:
+            method = session.execute(
+                select(PaymentMethod).where(PaymentMethod.code == code)
+            ).scalar_one_or_none()
+            if method is None:
+                session.add(
+                    PaymentMethod(
+                        code=code,
+                        name=name,
+                        method_type=method_type,
+                        cashbox_id=cashboxes[cashbox_code].id,
+                    )
+                )
+
+        for name in ["مشتريات", "رواتب وأجور", "كهرباء وماء", "نقل ومواصلات", "صيانة", "اتصالات", "إيجار", "أخرى"]:
+            category = session.execute(
+                select(ExpenseCategory).where(ExpenseCategory.name == name)
+            ).scalar_one_or_none()
+            if category is None:
+                session.add(ExpenseCategory(name=name))
 
         from backend.app.core.models import StockLocation
 
