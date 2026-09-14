@@ -14,6 +14,7 @@ from frontend.app.ui.main_window import MainWindow
 from frontend.app.ui.products_page import ProductsPage
 from frontend.app.ui.purchases_page import PurchasesPage
 from frontend.app.ui.reports_page import ReportsPage
+from frontend.app.ui.returns_page import ReturnsPage
 from frontend.app.ui.sales_page import SalesPage
 from frontend.app.ui.suppliers_page import SuppliersPage
 
@@ -41,6 +42,7 @@ def test_main_window_builds_in_offscreen_mode():
     assert isinstance(window._pages["الصناديق والحسابات"], CashboxesPage)
     assert window._pages["الصناديق والحسابات"].cashboxes_table.columnCount() == 5
     assert window._pages["الصناديق والحسابات"].movements_table.columnCount() == 6
+    assert isinstance(window._pages["المرتجعات"], ReturnsPage)
     assert isinstance(window._pages["التقارير"], ReportsPage)
     assert window._pages["التقارير"].table.columnCount() == 2
 
