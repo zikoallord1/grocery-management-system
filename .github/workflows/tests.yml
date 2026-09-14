@@ -14,8 +14,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Linux Qt runtime libraries
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1
+      - name: Install Linux Qt and barcode runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libzbar0
 
       - name: Set up Python
         uses: actions/setup-python@v5
