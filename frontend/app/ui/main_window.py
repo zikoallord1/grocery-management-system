@@ -1,5 +1,4 @@
 from datetime import date
-from decimal import Decimal
 from webbrowser import open as open_url
 
 from PySide6.QtCore import Qt, Signal
@@ -84,9 +83,9 @@ class MainWindow(QMainWindow):
     def refresh_dashboard(self):
         session = get_session()
         try:
-            today = date.today().isoformat(); s = ReportService(session).dashboard_summary(date_from=today, date_to=today)
-            values = {"sales": s.sales_total, "purchases": s.purchases_total, "expenses": s.expenses_total, "profit": s.gross_profit - s.expenses_total, "receivables": s.customer_receivables, "payables": s.supplier_payables, "cash": s.cash_balance, "low": Decimal("0")}
-            for key, value in values.items(): self._cards[key].value_label.setText(str(int(value)) if key == "low" else f"{Decimal(value):,.2f}")
+            today = date.today().isoformat(); reports = ReportService(session); s = reports.dashboard_summary(date_from=today, date_to=today)
+            values = {"sales": s.sales_total, "purchases": s.purchases_total, "expenses": s.expenses_total, "profit": s.gross_profit - s.expenses_total, "receivables": s.customer_receivables, "payables": s.supplier_payables, "cash": s.cash_balance, "low": reports.low_stock_count()}
+            for key, value in values.items(): self._cards[key].value_label.setText(str(int(value)) if key == "low" else f"{value:,.2f}")
         finally: session.close()
 
     @staticmethod
