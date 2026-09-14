@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QMainWin
 from backend.app.core.database import get_session
 from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
+from frontend.app.ui.cashboxes_page import CashboxesPage
 from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.expenses_page import ExpensesPage
 from frontend.app.ui.inventory_page import InventoryPage
@@ -56,6 +57,7 @@ class MainWindow(QMainWindow):
             "العملاء": ("العملاء", "إدارة بيانات العملاء والأرصدة والتحصيلات.", ["عميل جديد", "قبض من عميل", "كشف حساب"]),
             "الموردون": ("الموردون", "إدارة بيانات الموردين والأرصدة والمدفوعات.", ["مورد جديد", "سداد مورد", "كشف حساب"]),
             "المصروفات": ("المصروفات", "تسجيل ومراجعة المصروفات وربطها بوسيلة الدفع.", ["مصروف جديد", "تصنيفات المصروفات", "سجل المصروفات"]),
+            "الصناديق والحسابات": ("الصناديق والحسابات", "متابعة النقد والمحفظة والحساب البنكي والتحويلات بين الحسابات.", ["أرصدة الحسابات", "تحويل بين الحسابات", "سجل الحركات"]),
             "التقارير": ("التقارير", "تقارير تشغيلية ومالية قابلة للتوسع والطباعة والتصدير.", ["ملخص يومي", "الأرباح والخسائر", "أرصدة العملاء والموردين"]),
         }
         for name, (ptitle, desc, actions) in specs.items():
@@ -65,6 +67,7 @@ class MainWindow(QMainWindow):
             elif name == "العملاء": page = CustomersPage()
             elif name == "الموردون": page = SuppliersPage()
             elif name == "المصروفات": page = ExpensesPage()
+            elif name == "الصناديق والحسابات": page = CashboxesPage()
             elif name == "التقارير": page = ReportsPage()
             else: page = ModulePage(ptitle, desc, actions)
             if hasattr(page, "back_requested"): page.back_requested.connect(self._show_dashboard)
@@ -86,7 +89,7 @@ class MainWindow(QMainWindow):
         for i, (key, label) in enumerate([("sales", "مبيعات اليوم"), ("purchases", "مشتريات اليوم"), ("expenses", "المصروفات اليوم"), ("profit", "صافي الربح"), ("receivables", "ذمم العملاء"), ("payables", "ذمم الموردين"), ("cash", "رصيد الصندوق"), ("low", "أصناف منخفضة")]):
             card = SummaryCard(label, "0.00"); self._cards[key] = card; cards.addWidget(card, i // 4, i % 4)
         layout.addLayout(cards); quick = QFrame(); quick.setObjectName("panel"); ql = QVBoxLayout(quick); h = QLabel("العمليات الرئيسية"); h.setObjectName("pageTitle"); ql.addWidget(h); row = QHBoxLayout()
-        for label, target in [("فاتورة بيع جديدة", "المبيعات"), ("فاتورة شراء جديدة", "المشتريات"), ("إضافة صنف", "المخزون"), ("قبض من عميل", "العملاء"), ("سداد مورد", "الموردون"), ("تسجيل مصروف", "المصروفات")]:
+        for label, target in [("فاتورة بيع جديدة", "المبيعات"), ("فاتورة شراء جديدة", "المشتريات"), ("إضافة صنف", "المخزون"), ("قبض من عميل", "العملاء"), ("سداد مورد", "الموردون"), ("تسجيل مصروف", "المصروفات"), ("الصناديق والحسابات", "الصناديق والحسابات")]:
             b = QPushButton(label); b.setObjectName("actionButton"); b.clicked.connect(lambda checked=False, name=target: self._show_page(name)); row.addWidget(b)
         ql.addLayout(row); layout.addWidget(quick, 1); return page
 
