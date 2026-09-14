@@ -8,8 +8,10 @@ from backend.app.core.database import get_session
 from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
 from frontend.app.ui.customers_page import CustomersPage
+from frontend.app.ui.expenses_page import ExpensesPage
 from frontend.app.ui.inventory_page import InventoryPage
 from frontend.app.ui.purchases_page import PurchasesPage
+from frontend.app.ui.reports_page import ReportsPage
 from frontend.app.ui.sales_page import SalesPage
 from frontend.app.ui.suppliers_page import SuppliersPage
 
@@ -62,6 +64,8 @@ class MainWindow(QMainWindow):
             elif name == "المشتريات": page = PurchasesPage()
             elif name == "العملاء": page = CustomersPage()
             elif name == "الموردون": page = SuppliersPage()
+            elif name == "المصروفات": page = ExpensesPage()
+            elif name == "التقارير": page = ReportsPage()
             else: page = ModulePage(ptitle, desc, actions)
             if hasattr(page, "back_requested"): page.back_requested.connect(self._show_dashboard)
             self._pages[name] = page; self.stack.addWidget(page)
