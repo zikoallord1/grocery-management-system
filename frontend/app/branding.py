@@ -1,0 +1,14 @@
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Branding:
+    program_name: str = "نظام إدارة البقالات"
+    designer_credit: str = "تصميم وتنفيذ المهندس / زكريا الحاج"
+    contact_text: str = "لطلب البرنامج او تقديم المساعدة او طلب برامج اخرى التواصل على الرقم 772233564"
+    phone_display: str = "772233564"
+    phone_uri: str = "tel:+967772233564"
+    whatsapp_uri: str = "https://wa.me/967772233564"
+
+
+BRANDING = Branding()
