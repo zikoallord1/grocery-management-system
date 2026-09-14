@@ -165,9 +165,10 @@ class InventoryPage(QWidget):
             )
             rows = session.execute(
                 select(Product, StockLocation, func.coalesce(movement_balance.c.quantity, 0), func.coalesce(movement_balance.c.value, 0))
-                .select_from(Product, StockLocation)
+                .select_from(Product)
+                .join(StockLocation, StockLocation.is_active.is_(True))
                 .outerjoin(movement_balance, (movement_balance.c.product_id == Product.id) & (movement_balance.c.location_id == StockLocation.id))
-                .where(Product.is_active.is_(True), StockLocation.is_active.is_(True))
+                .where(Product.is_active.is_(True))
                 .order_by(Product.name, StockLocation.name)
             ).all()
             self.balance_table.setRowCount(len(rows))
