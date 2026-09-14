@@ -26,51 +26,28 @@ def clean_database():
 
     _setup_session = SessionLocal()
     try:
-        wallet_box = (
-            _setup_session.query(Cashbox)
-            .filter_by(code="WALLET")
-            .first()
-        )
-
+        wallet_box = _setup_session.query(Cashbox).filter_by(code="WALLET").first()
         if wallet_box is None:
-            wallet_box = Cashbox(
-                code="WALLET",
-                name="??????? ?????????",
-                account_type="WALLET",
-                currency="BASE",
-            )
+            wallet_box = Cashbox(code="WALLET", name="??????? ?????????", account_type="WALLET", currency="BASE")
             _setup_session.add(wallet_box)
             _setup_session.flush()
-
-        wallet_method = (
-            _setup_session.query(PaymentMethod)
-            .filter_by(code="WALLET")
-            .first()
-        )
-
+        wallet_method = _setup_session.query(PaymentMethod).filter_by(code="WALLET").first()
         if wallet_method is None:
-            _setup_session.add(
-                PaymentMethod(
-                    code="WALLET",
-                    name="?????",
-                    method_type="WALLET",
-                    cashbox_id=wallet_box.id,
-                    is_active=True,
-                )
-            )
-
+            _setup_session.add(PaymentMethod(code="WALLET", name="?????", method_type="WALLET", cashbox_id=wallet_box.id, is_active=True))
         _setup_session.commit()
     finally:
         _setup_session.close()
 
     with engine.begin() as connection:
         tables = set(inspect(engine).get_table_names())
-
-        # Delete child/dependent records before products.
         cleanup_order = [
             "cashbox_movements",
             "customer_payments",
             "customer_account_movements",
+            "sale_return_items",
+            "sale_returns",
+            "purchase_return_items",
+            "purchase_returns",
             "sale_payments",
             "sale_items",
             "sales",
@@ -91,70 +68,27 @@ def clean_database():
             "units",
             "categories",
         ]
-
         for table in cleanup_order:
             if table in tables:
-                connection.exec_driver_sql(
-                    f'DELETE FROM "{table}"'
-                )
+                connection.exec_driver_sql(f'DELETE FROM "{table}"')
 
-    # Recreate default CASH and WALLET after cleanup.
     from backend.app.modules.finance.models import Cashbox, PaymentMethod
     from backend.app.core.database import SessionLocal
-
     seed_session = SessionLocal()
     try:
         defaults = [
-            {
-                "code": "CASH",
-                "name": "?????",
-                "account_type": "CASH",
-                "method_type": "CASH",
-                "method_name": "???",
-            },
-            {
-                "code": "WALLET",
-                "name": "??????? ?????????",
-                "account_type": "WALLET",
-                "method_type": "WALLET",
-                "method_name": "?????",
-            },
+            {"code": "CASH", "name": "?????", "account_type": "CASH", "method_type": "CASH", "method_name": "???"},
+            {"code": "WALLET", "name": "??????? ?????????", "account_type": "WALLET", "method_type": "WALLET", "method_name": "?????"},
         ]
-
         for item in defaults:
-            cash_box = (
-                seed_session.query(Cashbox)
-                .filter_by(code=item["code"])
-                .first()
-            )
-
+            cash_box = seed_session.query(Cashbox).filter_by(code=item["code"]).first()
             if cash_box is None:
-                cash_box = Cashbox(
-                    code=item["code"],
-                    name=item["name"],
-                    account_type=item["account_type"],
-                    currency="BASE",
-                )
+                cash_box = Cashbox(code=item["code"], name=item["name"], account_type=item["account_type"], currency="BASE")
                 seed_session.add(cash_box)
                 seed_session.flush()
-
-            payment_method = (
-                seed_session.query(PaymentMethod)
-                .filter_by(code=item["code"])
-                .first()
-            )
-
+            payment_method = seed_session.query(PaymentMethod).filter_by(code=item["code"]).first()
             if payment_method is None:
-                seed_session.add(
-                    PaymentMethod(
-                        code=item["code"],
-                        name=item["method_name"],
-                        method_type=item["method_type"],
-                        cashbox_id=cash_box.id,
-                        is_active=True,
-                    )
-                )
-
+                seed_session.add(PaymentMethod(code=item["code"], name=item["method_name"], method_type=item["method_type"], cashbox_id=cash_box.id, is_active=True))
         seed_session.commit()
     finally:
         seed_session.close()
@@ -163,353 +97,110 @@ def clean_database():
 def setup_product_and_stock(session):
     category = Category(name="مبيعات")
     unit = Unit(name="حبة مبيع", symbol="حبة")
-    location = StockLocation(
-        code="SALE-MAIN",
-        name="مخزن البيع",
-        location_type="STORE",
-    )
-
+    location = StockLocation(code="SALE-MAIN", name="مخزن البيع", location_type="STORE")
     session.add_all([category, unit, location])
     session.flush()
-
-    product = Product(
-        sku="SALE-001",
-        name="صنف بيع",
-        category_id=category.id,
-        default_unit_id=unit.id,
-        purchase_price=Decimal("80"),
-        sale_price=Decimal("120"),
-    )
+    product = Product(sku="SALE-001", name="صنف بيع", category_id=category.id, default_unit_id=unit.id, purchase_price=Decimal("80"), sale_price=Decimal("120"))
     session.add(product)
     session.flush()
-
-    inventory = InventoryService(session)
-
-    inventory.add_stock(
-        product_id=product.id,
-        stock_location_id=location.id,
-        quantity=Decimal("10"),
-        unit_cost=Decimal("80"),
-        business_date="2026-09-14",
-        idempotency_key=str(uuid.uuid4()),
-    )
-
+    InventoryService(session).add_stock(product_id=product.id, stock_location_id=location.id, quantity=Decimal("10"), unit_cost=Decimal("80"), business_date="2026-09-14", idempotency_key=str(uuid.uuid4()))
     return product, location
 
 
 def test_create_cash_sale_reduces_stock():
     session = get_session()
-
     try:
         product, location = setup_product_and_stock(session)
-        service = SaleService(session)
-
-        sale = service.create_sale(
-            document_no="S-0001",
-            business_date="2026-09-14",
-            items=[
-                {
-                    "product_id": product.id,
-                    "stock_location_id": location.id,
-                    "quantity": "2",
-                    "unit_price": "120",
-                    "discount": "0",
-                }
-            ],
-            payments=[
-                {
-                    "payment_method": "CASH",
-                    "amount": "240",
-                }
-            ],
-            idempotency_key=str(uuid.uuid4()),
-        )
-
+        sale = SaleService(session).create_sale(document_no="S-0001", business_date="2026-09-14", items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "2", "unit_price": "120", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "240"}], idempotency_key=str(uuid.uuid4()))
         assert sale.total == Decimal("240.00")
         assert sale.paid_amount == Decimal("240.00")
         assert sale.credit_amount == Decimal("0.00")
-
-        inventory = InventoryService(session)
-
-        assert inventory.get_balance(
-            product.id,
-            location.id,
-        ) == Decimal("8.000")
-
+        assert InventoryService(session).get_balance(product.id, location.id) == Decimal("8.000")
         session.commit()
-
     finally:
         session.close()
 
 
 def test_mixed_payment_is_supported():
     session = get_session()
-
     try:
         product, location = setup_product_and_stock(session)
-        service = SaleService(session)
-        customer = Customer(
-            code="CUST-TEST-MIXED-001",
-            name="test-customer-mixed-payment",
-            phone="0000000000",
-        )
+        customer = Customer(code="CUST-TEST-MIXED-001", name="test-customer-mixed-payment", phone="0000000000")
         session.add(customer)
         session.flush()
-
-        sale = service.create_sale(
-            document_no="S-0002",
-            business_date="2026-09-14",
-            customer_id=customer.id,
-            items=[
-                {
-                    "product_id": product.id,
-                    "stock_location_id": location.id,
-                    "quantity": "2",
-                    "unit_price": "100",
-                    "discount": "0",
-                }
-            ],
-            payments=[
-                {
-                    "payment_method": "CASH",
-                    "amount": "100",
-                },
-                {
-                    "payment_method": "WALLET",
-                    "amount": "50",
-                },
-            ],
-            idempotency_key=str(uuid.uuid4()),
-        )
-
+        sale = SaleService(session).create_sale(document_no="S-0002", business_date="2026-09-14", customer_id=customer.id, items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "2", "unit_price": "100", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "100"}, {"payment_method": "WALLET", "amount": "50"}], idempotency_key=str(uuid.uuid4()))
         assert sale.total == Decimal("200.00")
         assert sale.paid_amount == Decimal("150.00")
         assert sale.credit_amount == Decimal("50.00")
         assert sale.payment_status == "PARTIAL"
-
         session.commit()
-
     finally:
         session.close()
 
 
 def test_duplicate_sale_is_rejected():
     session = get_session()
-
     try:
         product, location = setup_product_and_stock(session)
         service = SaleService(session)
-
         key = str(uuid.uuid4())
-
-        payload = dict(
-            document_no="S-0003",
-            business_date="2026-09-14",
-            items=[
-                {
-                    "product_id": product.id,
-                    "stock_location_id": location.id,
-                    "quantity": "1",
-                    "unit_price": "100",
-                    "discount": "0",
-                }
-            ],
-            payments=[
-                {
-                    "payment_method": "CASH",
-                    "amount": "100",
-                }
-            ],
-            idempotency_key=key,
-        )
-
+        payload = dict(document_no="S-0003", business_date="2026-09-14", items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "1", "unit_price": "100", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "100"}], idempotency_key=key)
         service.create_sale(**payload)
         session.commit()
-
         with pytest.raises(DuplicateSaleError):
             service.create_sale(**payload)
-
     finally:
         session.close()
 
 
 def test_payment_cannot_exceed_total():
     session = get_session()
-
     try:
         product, location = setup_product_and_stock(session)
-        service = SaleService(session)
-
         with pytest.raises(InvalidSaleError):
-            service.create_sale(
-                document_no="S-0004",
-                business_date="2026-09-14",
-                items=[
-                    {
-                        "product_id": product.id,
-                        "stock_location_id": location.id,
-                        "quantity": "1",
-                        "unit_price": "100",
-                    }
-                ],
-                payments=[
-                    {
-                        "payment_method": "CASH",
-                        "amount": "101",
-                    }
-                ],
-                idempotency_key=str(uuid.uuid4()),
-            )
-
+            SaleService(session).create_sale(document_no="S-0004", business_date="2026-09-14", items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "1", "unit_price": "100"}], payments=[{"payment_method": "CASH", "amount": "101"}], idempotency_key=str(uuid.uuid4()))
     finally:
         session.close()
 
 
 def test_sale_fails_when_stock_is_insufficient():
     session = get_session()
-
     try:
         product, location = setup_product_and_stock(session)
-        service = SaleService(session)
-
         with pytest.raises(Exception):
-            service.create_sale(
-                document_no="S-0005",
-                business_date="2026-09-14",
-                items=[
-                    {
-                        "product_id": product.id,
-                        "stock_location_id": location.id,
-                        "quantity": "11",
-                        "unit_price": "100",
-                    }
-                ],
-                payments=[
-                    {
-                        "payment_method": "CASH",
-                        "amount": "1100",
-                    }
-                ],
-                idempotency_key=str(uuid.uuid4()),
-            )
-
-        inventory = InventoryService(session)
-
-        assert inventory.get_balance(
-            product.id,
-            location.id,
-        ) == Decimal("10.000")
-
+            SaleService(session).create_sale(document_no="S-0005", business_date="2026-09-14", items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "11", "unit_price": "100"}], payments=[{"payment_method": "CASH", "amount": "1100"}], idempotency_key=str(uuid.uuid4()))
+        assert InventoryService(session).get_balance(product.id, location.id) == Decimal("10.000")
     finally:
         session.close()
 
 
 def test_sale_publishes_sale_confirmed_event():
     from backend.app.application.business_engine import BusinessEngine
-
     session = get_session()
-
     try:
         product, location = setup_product_and_stock(session)
-
-        engine = BusinessEngine()
-        received = []
-
-        engine.register_rule(
-            name="TEST_CAPTURE_SALE_CONFIRMED",
-            event_type="SALE_CONFIRMED",
-            handler=lambda current_session, event: (
-                received.append(event) or []
-            ),
-        )
-
-        service = SaleService(
-            session,
-            business_engine=engine,
-        )
-
-        sale = service.create_sale(
-            document_no="S-ENGINE-0001",
-            business_date="2026-09-14",
-            items=[
-                {
-                    "product_id": product.id,
-                    "stock_location_id": location.id,
-                    "quantity": "1",
-                    "unit_price": "100",
-                    "discount": "0",
-                }
-            ],
-            payments=[
-                {
-                    "payment_method": "CASH",
-                    "amount": "100",
-                }
-            ],
-            idempotency_key=str(uuid.uuid4()),
-        )
-
-        assert sale.status == "CONFIRMED"
-        assert len(received) == 1
-
+        engine = BusinessEngine(); received = []
+        engine.register_rule(name="TEST_CAPTURE_SALE_CONFIRMED", event_type="SALE_CONFIRMED", handler=lambda current_session, event: (received.append(event) or []))
+        sale = SaleService(session, business_engine=engine).create_sale(document_no="S-ENGINE-0001", business_date="2026-09-14", items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "1", "unit_price": "100", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "100"}], idempotency_key=str(uuid.uuid4()))
+        assert sale.status == "CONFIRMED" and len(received) == 1
         event = received[0]
-        assert event.event_type == "SALE_CONFIRMED"
-        assert event.operation_id == sale.idempotency_key
-        assert event.payload["sale_id"] == sale.id
-        assert event.payload["document_no"] == "S-ENGINE-0001"
-        assert Decimal(event.payload["total"]) == Decimal("100.00")
-        assert Decimal(event.payload["paid_amount"]) == Decimal("100.00")
-        assert Decimal(event.payload["credit_amount"]) == Decimal("0.00")
+        assert event.event_type == "SALE_CONFIRMED" and event.operation_id == sale.idempotency_key
+        assert event.payload["sale_id"] == sale.id and event.payload["document_no"] == "S-ENGINE-0001"
+        assert Decimal(event.payload["total"]) == Decimal("100.00") and Decimal(event.payload["paid_amount"]) == Decimal("100.00") and Decimal(event.payload["credit_amount"]) == Decimal("0.00")
         assert event.payload["payment_status"] == "PAID"
-
         session.commit()
-
     finally:
         session.close()
 
 
 def test_real_sale_creates_audit_log_automatically():
     session = get_session()
-
     try:
         product, location = setup_product_and_stock(session)
         operation_id = str(uuid.uuid4())
-
-        sale = SaleService(session).create_sale(
-            document_no="S-AUDIT-0001",
-            business_date="2026-09-14",
-            items=[
-                {
-                    "product_id": product.id,
-                    "stock_location_id": location.id,
-                    "quantity": "1",
-                    "unit_price": "120",
-                    "discount": "0",
-                }
-            ],
-            payments=[
-                {
-                    "payment_method": "CASH",
-                    "amount": "120",
-                }
-            ],
-            idempotency_key=operation_id,
-        )
-
-        audit = session.execute(
-            select(AuditLog).where(
-                AuditLog.operation_id == operation_id,
-                AuditLog.event_type == "SALE_CONFIRMED",
-                AuditLog.action == "EVENT_PROCESSED",
-            )
-        ).scalar_one_or_none()
-
-        assert sale.status == "CONFIRMED"
-        assert audit is not None
-        assert audit.entity_type == "SALE"
-        assert audit.entity_id == str(sale.id)
-
+        sale = SaleService(session).create_sale(document_no="S-AUDIT-0001", business_date="2026-09-14", items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "1", "unit_price": "120", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "120"}], idempotency_key=operation_id)
+        audit = session.execute(select(AuditLog).where(AuditLog.operation_id == operation_id, AuditLog.event_type == "SALE_CONFIRMED", AuditLog.action == "EVENT_PROCESSED")).scalar_one_or_none()
+        assert sale.status == "CONFIRMED" and audit is not None and audit.entity_type == "SALE" and audit.entity_id == str(sale.id)
         session.rollback()
-
     finally:
         session.close()
