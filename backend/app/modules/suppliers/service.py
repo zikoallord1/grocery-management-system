@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import case, func, select
@@ -60,7 +61,6 @@ class SupplierService:
             )
         ).scalar_one_or_none() is not None:
             raise DuplicateSupplierOperationError("Duplicate supplier account operation.")
-
         movement = SupplierAccountMovement(
             supplier_id=supplier_id,
             movement_type="PURCHASE_CREDIT",
@@ -80,6 +80,7 @@ class SupplierService:
             BusinessEvent(
                 event_type="SUPPLIER_PURCHASE_CREDIT_REGISTERED",
                 operation_id=idempotency_key,
+                business_date=date.fromisoformat(business_date),
                 payload={
                     "entity_type": "SUPPLIER",
                     "entity_id": supplier_id,
@@ -117,7 +118,6 @@ class SupplierService:
         current = self.get_balance(supplier_id)
         if amount > current:
             raise SupplierError(f"Payment exceeds supplier balance: balance={current}")
-
         payment = SupplierPayment(
             supplier_id=supplier_id,
             amount=amount,
@@ -147,6 +147,7 @@ class SupplierService:
             BusinessEvent(
                 event_type="SUPPLIER_PAYMENT_MADE",
                 operation_id=idempotency_key,
+                business_date=date.fromisoformat(business_date),
                 payload={
                     "entity_type": "SUPPLIER_PAYMENT",
                     "entity_id": payment.id,
