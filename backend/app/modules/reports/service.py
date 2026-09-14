@@ -5,9 +5,11 @@ from sqlalchemy import case, func, select
 
 from backend.app.core.models import (
     CustomerAccountMovement,
+    Product,
     Purchase,
     Sale,
     SaleItem,
+    StockMovement,
     SupplierAccountMovement,
 )
 from backend.app.modules.finance.models import CashboxMovement, Expense
@@ -161,6 +163,33 @@ class ReportService:
             supplier_payables=supplier_payables,
             gross_profit=gross_profit,
         )
+
+    def low_stock_count(self) -> int:
+        """Count active products whose total stock is at or below minimum stock."""
+        balance = (
+            select(
+                StockMovement.product_id.label("product_id"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (StockMovement.direction == "IN", StockMovement.quantity),
+                            (StockMovement.direction == "OUT", -StockMovement.quantity),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("quantity"),
+            )
+            .group_by(StockMovement.product_id)
+            .subquery()
+        )
+        statement = select(func.count(Product.id)).outerjoin(
+            balance, balance.c.product_id == Product.id
+        ).where(
+            Product.is_active.is_(True),
+            func.coalesce(balance.c.quantity, 0) <= Product.minimum_stock,
+        )
+        return int(self._session.execute(statement).scalar_one())
 
     def _sum(self, statement) -> Decimal:
         return Decimal(str(self._session.execute(statement).scalar_one()))
