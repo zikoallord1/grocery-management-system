@@ -7,6 +7,8 @@ from backend.app.core.database import get_session
 from backend.app.core.models import Customer, CustomerAccountMovement, CustomerPayment
 from backend.app.application.business_engine import BusinessEngine
 from backend.app.domain.business_events import BusinessEvent
+from backend.app.modules.finance.models import PaymentMethod
+from backend.app.modules.finance.service import CashboxService
 
 
 class CustomerError(Exception):
@@ -132,6 +134,18 @@ class CustomerService:
         current = self.get_balance(customer_id)
         if amount > current:
             raise CustomerError(f"Payment exceeds outstanding balance: balance={current}")
+
+        method = session.execute(
+            select(PaymentMethod).where(
+                PaymentMethod.code == payment_method,
+                PaymentMethod.is_active.is_(True),
+            )
+        ).scalar_one_or_none()
+        if method is None:
+            raise CustomerError("Payment method does not exist or is inactive.")
+        if method.cashbox_id is None:
+            raise CustomerError("Selected payment method is not linked to a cashbox.")
+
         payment = CustomerPayment(
             customer_id=customer_id,
             amount=amount,
@@ -156,6 +170,17 @@ class CustomerService:
         )
         session.add_all([payment, movement])
         session.flush()
+        CashboxService(session).move_money(
+            cashbox_id=method.cashbox_id,
+            amount=amount,
+            direction="IN",
+            movement_type="CUSTOMER_PAYMENT",
+            business_date=business_date,
+            idempotency_key=f"{idempotency_key}:cashbox",
+            reference_type="CUSTOMER_PAYMENT",
+            reference_id=reference_no or str(payment.id),
+            created_by=created_by,
+        )
         self._business_engine.process(
             session,
             BusinessEvent(
