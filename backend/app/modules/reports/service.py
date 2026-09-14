@@ -38,6 +38,10 @@ class ReportService:
     def _period_filter(column, date_from: str, date_to: str):
         return (column >= date_from, column <= date_to)
 
+    @staticmethod
+    def _as_of_filter(column, date_to: str):
+        return column <= date_to
+
     def dashboard_summary(self, *, date_from: str, date_to: str) -> DashboardSummary:
         sales_total = self._sum(
             select(func.coalesce(func.sum(Sale.total), 0)).where(
@@ -96,7 +100,7 @@ class ReportService:
                     ),
                     0,
                 )
-            )
+            ).where(self._as_of_filter(CashboxMovement.business_date, date_to))
         )
 
         customer_receivables = self._sum(
@@ -111,7 +115,7 @@ class ReportService:
                     ),
                     0,
                 )
-            )
+            ).where(self._as_of_filter(CustomerAccountMovement.business_date, date_to))
         )
 
         supplier_payables = self._sum(
@@ -126,7 +130,7 @@ class ReportService:
                     ),
                     0,
                 )
-            )
+            ).where(self._as_of_filter(SupplierAccountMovement.business_date, date_to))
         )
 
         gross_profit = self._sum(
