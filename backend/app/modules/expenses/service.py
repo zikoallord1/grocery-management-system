@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -37,22 +38,17 @@ class ExpenseService:
     ):
         if amount <= 0:
             raise ExpenseError("Expense amount must be greater than zero.")
-
         if self._session.execute(
             select(Expense.id).where(Expense.idempotency_key == idempotency_key)
         ).scalar_one_or_none() is not None:
             raise DuplicateExpenseError("Duplicate expense.")
-
         if self._session.get(ExpenseCategory, category_id) is None:
             raise ExpenseError("Expense category does not exist.")
-
         method = self._session.get(PaymentMethod, payment_method_id)
         if method is None or not method.is_active:
             raise ExpenseError("Payment method does not exist or is inactive.")
-
         if method.cashbox_id is None:
             raise ExpenseError("Payment method is not linked to a cash account.")
-
         expense = Expense(
             expense_no=expense_no,
             category_id=category_id,
@@ -68,7 +64,6 @@ class ExpenseService:
         )
         self._session.add(expense)
         self._session.flush()
-
         self._session.add(
             ExpensePayment(
                 expense_id=expense.id,
@@ -77,7 +72,6 @@ class ExpenseService:
                 currency="BASE",
             )
         )
-
         CashboxService(self._session).move_money(
             cashbox_id=method.cashbox_id,
             amount=amount,
@@ -89,13 +83,13 @@ class ExpenseService:
             reference_id=str(expense.id),
             created_by=created_by,
         )
-
         self._session.flush()
         self._business_engine.process(
             self._session,
             BusinessEvent(
                 event_type="EXPENSE_CONFIRMED",
                 operation_id=idempotency_key,
+                business_date=date.fromisoformat(business_date),
                 payload={
                     "entity_type": "EXPENSE",
                     "entity_id": expense.id,
