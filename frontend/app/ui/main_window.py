@@ -11,6 +11,7 @@ from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.inventory_page import InventoryPage
 from frontend.app.ui.purchases_page import PurchasesPage
 from frontend.app.ui.sales_page import SalesPage
+from frontend.app.ui.suppliers_page import SuppliersPage
 
 
 class SummaryCard(QFrame):
@@ -56,16 +57,12 @@ class MainWindow(QMainWindow):
             "التقارير": ("التقارير", "تقارير تشغيلية ومالية قابلة للتوسع والطباعة والتصدير.", ["ملخص يومي", "الأرباح والخسائر", "أرصدة العملاء والموردين"]),
         }
         for name, (ptitle, desc, actions) in specs.items():
-            if name == "المخزون":
-                page = InventoryPage()
-            elif name == "المبيعات":
-                page = SalesPage()
-            elif name == "المشتريات":
-                page = PurchasesPage()
-            elif name == "العملاء":
-                page = CustomersPage()
-            else:
-                page = ModulePage(ptitle, desc, actions)
+            if name == "المخزون": page = InventoryPage()
+            elif name == "المبيعات": page = SalesPage()
+            elif name == "المشتريات": page = PurchasesPage()
+            elif name == "العملاء": page = CustomersPage()
+            elif name == "الموردون": page = SuppliersPage()
+            else: page = ModulePage(ptitle, desc, actions)
             if hasattr(page, "back_requested"): page.back_requested.connect(self._show_dashboard)
             self._pages[name] = page; self.stack.addWidget(page)
         root_layout.addWidget(self.stack, 1)
@@ -92,8 +89,7 @@ class MainWindow(QMainWindow):
     def _show_dashboard(self): self.stack.setCurrentWidget(self.dashboard); self.refresh_dashboard()
     def _show_page(self, name):
         page = self._pages[name]
-        if hasattr(page, "refresh"):
-            page.refresh()
+        if hasattr(page, "refresh"): page.refresh()
         self.stack.setCurrentWidget(page)
 
     def refresh_dashboard(self):
