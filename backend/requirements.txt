@@ -4,3 +4,6 @@ alembic>=1.14,<2
 pytest>=8,<9
 pytest-cov>=6,<7
 pyinstaller>=6,<7
+numpy>=2,<3
+opencv-python-headless>=4.10,<5
+pyzbar>=0.1.9,<1
