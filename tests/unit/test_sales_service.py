@@ -2,52 +2,31 @@ import uuid
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
-from sqlalchemy import inspect
+from sqlalchemy import inspect, select
 
 from backend.app.core.audit_models import AuditLog
-from backend.app.core.models import Customer
 from backend.app.core.database import engine, get_session, initialize_database
-from backend.app.core.models import Category, Product, StockLocation, Unit
+from backend.app.core.models import Category, Customer, Product, StockLocation, Unit
 from backend.app.modules.inventory.service import InventoryService
-from backend.app.modules.sales.service import (
-    DuplicateSaleError,
-    InvalidSaleError,
-    SaleService,
-)
+from backend.app.modules.sales.service import DuplicateSaleError, InvalidSaleError, SaleService
 
 
 @pytest.fixture(autouse=True)
 def clean_database():
     initialize_database()
-
-    from backend.app.modules.finance.models import Cashbox, PaymentMethod
     from backend.app.core.database import SessionLocal
-
-    _setup_session = SessionLocal()
-    try:
-        wallet_box = _setup_session.query(Cashbox).filter_by(code="WALLET").first()
-        if wallet_box is None:
-            wallet_box = Cashbox(code="WALLET", name="??????? ?????????", account_type="WALLET", currency="BASE")
-            _setup_session.add(wallet_box)
-            _setup_session.flush()
-        wallet_method = _setup_session.query(PaymentMethod).filter_by(code="WALLET").first()
-        if wallet_method is None:
-            _setup_session.add(PaymentMethod(code="WALLET", name="?????", method_type="WALLET", cashbox_id=wallet_box.id, is_active=True))
-        _setup_session.commit()
-    finally:
-        _setup_session.close()
+    from backend.app.modules.finance.models import Cashbox, PaymentMethod
 
     with engine.begin() as connection:
         tables = set(inspect(engine).get_table_names())
         cleanup_order = [
+            "sale_return_items",
+            "purchase_return_items",
+            "sale_returns",
+            "purchase_returns",
             "cashbox_movements",
             "customer_payments",
             "customer_account_movements",
-            "sale_return_items",
-            "sale_returns",
-            "purchase_return_items",
-            "purchase_returns",
             "sale_payments",
             "sale_items",
             "sales",
@@ -72,23 +51,20 @@ def clean_database():
             if table in tables:
                 connection.exec_driver_sql(f'DELETE FROM "{table}"')
 
-    from backend.app.modules.finance.models import Cashbox, PaymentMethod
-    from backend.app.core.database import SessionLocal
     seed_session = SessionLocal()
     try:
-        defaults = [
-            {"code": "CASH", "name": "?????", "account_type": "CASH", "method_type": "CASH", "method_name": "???"},
-            {"code": "WALLET", "name": "??????? ?????????", "account_type": "WALLET", "method_type": "WALLET", "method_name": "?????"},
-        ]
-        for item in defaults:
-            cash_box = seed_session.query(Cashbox).filter_by(code=item["code"]).first()
+        for code, name, account_type, method_type, method_name in [
+            ("CASH", "النقد", "CASH", "CASH", "نقد"),
+            ("WALLET", "المحفظة الإلكترونية", "WALLET", "WALLET", "محفظة إلكترونية"),
+        ]:
+            cash_box = seed_session.query(Cashbox).filter_by(code=code).first()
             if cash_box is None:
-                cash_box = Cashbox(code=item["code"], name=item["name"], account_type=item["account_type"], currency="BASE")
+                cash_box = Cashbox(code=code, name=name, account_type=account_type, currency="BASE")
                 seed_session.add(cash_box)
                 seed_session.flush()
-            payment_method = seed_session.query(PaymentMethod).filter_by(code=item["code"]).first()
+            payment_method = seed_session.query(PaymentMethod).filter_by(code=code).first()
             if payment_method is None:
-                seed_session.add(PaymentMethod(code=item["code"], name=item["method_name"], method_type=item["method_type"], cashbox_id=cash_box.id, is_active=True))
+                seed_session.add(PaymentMethod(code=code, name=method_name, method_type=method_type, cashbox_id=cash_box.id, is_active=True))
         seed_session.commit()
     finally:
         seed_session.close()
@@ -125,10 +101,11 @@ def test_mixed_payment_is_supported():
     session = get_session()
     try:
         product, location = setup_product_and_stock(session)
+        service = SaleService(session)
         customer = Customer(code="CUST-TEST-MIXED-001", name="test-customer-mixed-payment", phone="0000000000")
         session.add(customer)
         session.flush()
-        sale = SaleService(session).create_sale(document_no="S-0002", business_date="2026-09-14", customer_id=customer.id, items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "2", "unit_price": "100", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "100"}, {"payment_method": "WALLET", "amount": "50"}], idempotency_key=str(uuid.uuid4()))
+        sale = service.create_sale(document_no="S-0002", business_date="2026-09-14", customer_id=customer.id, items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "2", "unit_price": "100", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "100"}, {"payment_method": "WALLET", "amount": "50"}], idempotency_key=str(uuid.uuid4()))
         assert sale.total == Decimal("200.00")
         assert sale.paid_amount == Decimal("150.00")
         assert sale.credit_amount == Decimal("50.00")
@@ -179,14 +156,20 @@ def test_sale_publishes_sale_confirmed_event():
     session = get_session()
     try:
         product, location = setup_product_and_stock(session)
-        engine = BusinessEngine(); received = []
+        engine = BusinessEngine()
+        received = []
         engine.register_rule(name="TEST_CAPTURE_SALE_CONFIRMED", event_type="SALE_CONFIRMED", handler=lambda current_session, event: (received.append(event) or []))
         sale = SaleService(session, business_engine=engine).create_sale(document_no="S-ENGINE-0001", business_date="2026-09-14", items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "1", "unit_price": "100", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "100"}], idempotency_key=str(uuid.uuid4()))
-        assert sale.status == "CONFIRMED" and len(received) == 1
+        assert sale.status == "CONFIRMED"
+        assert len(received) == 1
         event = received[0]
-        assert event.event_type == "SALE_CONFIRMED" and event.operation_id == sale.idempotency_key
-        assert event.payload["sale_id"] == sale.id and event.payload["document_no"] == "S-ENGINE-0001"
-        assert Decimal(event.payload["total"]) == Decimal("100.00") and Decimal(event.payload["paid_amount"]) == Decimal("100.00") and Decimal(event.payload["credit_amount"]) == Decimal("0.00")
+        assert event.event_type == "SALE_CONFIRMED"
+        assert event.operation_id == sale.idempotency_key
+        assert event.payload["sale_id"] == sale.id
+        assert event.payload["document_no"] == "S-ENGINE-0001"
+        assert Decimal(event.payload["total"]) == Decimal("100.00")
+        assert Decimal(event.payload["paid_amount"]) == Decimal("100.00")
+        assert Decimal(event.payload["credit_amount"]) == Decimal("0.00")
         assert event.payload["payment_status"] == "PAID"
         session.commit()
     finally:
@@ -200,7 +183,10 @@ def test_real_sale_creates_audit_log_automatically():
         operation_id = str(uuid.uuid4())
         sale = SaleService(session).create_sale(document_no="S-AUDIT-0001", business_date="2026-09-14", items=[{"product_id": product.id, "stock_location_id": location.id, "quantity": "1", "unit_price": "120", "discount": "0"}], payments=[{"payment_method": "CASH", "amount": "120"}], idempotency_key=operation_id)
         audit = session.execute(select(AuditLog).where(AuditLog.operation_id == operation_id, AuditLog.event_type == "SALE_CONFIRMED", AuditLog.action == "EVENT_PROCESSED")).scalar_one_or_none()
-        assert sale.status == "CONFIRMED" and audit is not None and audit.entity_type == "SALE" and audit.entity_id == str(sale.id)
+        assert sale.status == "CONFIRMED"
+        assert audit is not None
+        assert audit.entity_type == "SALE"
+        assert audit.entity_id == str(sale.id)
         session.rollback()
     finally:
         session.close()
