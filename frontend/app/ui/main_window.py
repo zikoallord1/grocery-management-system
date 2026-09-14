@@ -8,7 +8,7 @@ from backend.app.core.database import get_session
 from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
 from frontend.app.ui.inventory_page import InventoryPage
-from frontend.app.ui.products_page import ProductsPage
+from frontend.app.ui.purchases_page import PurchasesPage
 from frontend.app.ui.sales_page import SalesPage
 
 
@@ -59,6 +59,8 @@ class MainWindow(QMainWindow):
                 page = InventoryPage()
             elif name == "المبيعات":
                 page = SalesPage()
+            elif name == "المشتريات":
+                page = PurchasesPage()
             else:
                 page = ModulePage(ptitle, desc, actions)
             if hasattr(page, "back_requested"): page.back_requested.connect(self._show_dashboard)
