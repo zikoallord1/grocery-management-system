@@ -8,6 +8,7 @@ from backend.app.core.database import get_session
 from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
 from frontend.app.ui.products_page import ProductsPage
+from frontend.app.ui.sales_page import SalesPage
 
 
 class SummaryCard(QFrame):
@@ -53,7 +54,12 @@ class MainWindow(QMainWindow):
             "التقارير": ("التقارير", "تقارير تشغيلية ومالية قابلة للتوسع والطباعة والتصدير.", ["ملخص يومي", "الأرباح والخسائر", "أرصدة العملاء والموردين"]),
         }
         for name, (ptitle, desc, actions) in specs.items():
-            page = ProductsPage() if name == "المخزون" else ModulePage(ptitle, desc, actions)
+            if name == "المخزون":
+                page = ProductsPage()
+            elif name == "المبيعات":
+                page = SalesPage()
+            else:
+                page = ModulePage(ptitle, desc, actions)
             if hasattr(page, "back_requested"): page.back_requested.connect(self._show_dashboard)
             self._pages[name] = page; self.stack.addWidget(page)
         root_layout.addWidget(self.stack, 1)
