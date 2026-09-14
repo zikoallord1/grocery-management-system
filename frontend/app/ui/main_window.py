@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from backend.app.core.database import get_session, initialize_database
+from backend.app.core.database import get_session
 from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
 
@@ -72,10 +72,8 @@ class MainWindow(QMainWindow):
         self.resize(1180, 760)
         self.setMinimumSize(980, 650)
         self.setLayoutDirection(Qt.RightToLeft)
-        initialize_database()
         self._cards: dict[str, SummaryCard] = {}
         self._build_ui()
-        self.refresh_dashboard()
 
     def _build_ui(self):
         root = QWidget()
@@ -117,7 +115,7 @@ class MainWindow(QMainWindow):
         }
         for name, (title, description, actions) in module_specs.items():
             page = ModulePage(title, description, actions)
-            page.back_requested.connect(lambda name=name: self._show_dashboard())
+            page.back_requested.connect(self._show_dashboard)
             self._pages[name] = page
             self.stack.addWidget(page)
         root_layout.addWidget(self.stack, 1)
@@ -160,7 +158,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         cards = QGridLayout()
         cards.setSpacing(12)
-        for key, label in [
+        for index, (key, label) in enumerate([
             ("sales", "مبيعات اليوم"),
             ("purchases", "مشتريات اليوم"),
             ("expenses", "المصروفات اليوم"),
@@ -169,10 +167,10 @@ class MainWindow(QMainWindow):
             ("payables", "ذمم الموردين"),
             ("cash", "رصيد الصندوق"),
             ("low", "أصناف منخفضة"),
-        ]:
+        ]):
             card = SummaryCard(label, "0.00")
             self._cards[key] = card
-            cards.addWidget(card, len(self._cards) // 5, (len(self._cards) - 1) % 4)
+            cards.addWidget(card, index // 4, index % 4)
         layout.addLayout(cards)
         quick = QFrame()
         quick.setObjectName("panel")
@@ -213,10 +211,7 @@ class MainWindow(QMainWindow):
                 "low": Decimal("0"),
             }
             for key, value in values.items():
-                if key == "low":
-                    self._cards[key].value_label.setText(str(int(value)))
-                else:
-                    self._cards[key].value_label.setText(f"{Decimal(value):,.2f}")
+                self._cards[key].value_label.setText(str(int(value)) if key == "low" else f"{Decimal(value):,.2f}")
         finally:
             session.close()
 
