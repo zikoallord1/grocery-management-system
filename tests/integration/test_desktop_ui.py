@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from backend.app.core.database import initialize_database
+from frontend.app.ui.barcode_scanner import BarcodeScannerWidget
 from frontend.app.ui.cashboxes_page import CashboxesPage
 from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.expenses_page import ExpensesPage
@@ -25,6 +26,9 @@ def test_main_window_builds_in_offscreen_mode():
     window = MainWindow()
     assert window.windowTitle() == "نظام إدارة البقالات"
     assert window.layoutDirection() == Qt.RightToLeft
+    assert isinstance(window.barcode_scanner, BarcodeScannerWidget)
+    assert window.barcode_scanner.width() == 270
+    assert window.barcode_scanner.height() == 205
     assert isinstance(window._pages["المخزون"], InventoryPage)
     assert window._pages["المخزون"].balance_table.columnCount() == 6
     assert window._pages["المخزون"].movement_table.columnCount() == 7
