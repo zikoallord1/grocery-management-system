@@ -47,7 +47,12 @@ def test_sale_failure_rolls_back_sale_and_side_effects(monkeypatch):
                         "discount": "0",
                     }
                 ],
-                payments=[],
+                payments=[
+                    {
+                        "payment_method": "CASH",
+                        "amount": "120",
+                    }
+                ],
                 idempotency_key=operation_id,
             )
     finally:
