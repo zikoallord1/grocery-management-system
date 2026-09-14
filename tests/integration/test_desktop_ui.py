@@ -35,6 +35,7 @@ def test_main_window_builds_in_offscreen_mode():
     assert isinstance(window._pages["المشتريات"], PurchasesPage)
     assert window._pages["المشتريات"].history.columnCount() == 7
     assert window._pages["المشتريات"].product is not None
+    assert window._pages["المشتريات"].lines.columnCount() == 5
     assert isinstance(window._pages["العملاء"], CustomersPage)
     assert isinstance(window._pages["الموردون"], SuppliersPage)
     assert window._pages["الموردون"].table.columnCount() == 5
