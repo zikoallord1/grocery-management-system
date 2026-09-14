@@ -22,6 +22,7 @@ from sqlalchemy import select
 
 from backend.app.core.database import get_session
 from backend.app.core.models import Customer, Product, Sale, SaleItem, StockLocation
+from backend.app.modules.finance.models import PaymentMethod
 from backend.app.modules.sales.service import SaleService
 
 
@@ -39,24 +40,27 @@ class SalesPage(QWidget):
         self.price = QDoubleSpinBox()
         self.price.setRange(0, 999999999)
         self.price.setDecimals(2)
+        self.payment_method = QComboBox()
         self.payment = QDoubleSpinBox()
         self.payment.setRange(0, 999999999)
         self.payment.setDecimals(2)
         self.customer = QComboBox()
         self.customer.addItem("بدون عميل / بيع نقدي", None)
         self.total_label = QLabel("0.00")
+        self.paid_label = QLabel("0.00")
+        self.remaining_label = QLabel("0.00")
         self.stock_label = QLabel("-")
         self.location_id = None
         self.lines = []
+        self.payment_lines = []
         self.lines_table = QTableWidget(0, 6)
-        self.lines_table.setHorizontalHeaderLabels(
-            ["الصنف", "الكمية", "السعر", "الخصم", "الإجمالي", "المخزون"]
-        )
+        self.lines_table.setHorizontalHeaderLabels(["الصنف", "الكمية", "السعر", "الخصم", "الإجمالي", "المخزون"])
         self.lines_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.payments_table = QTableWidget(0, 2)
+        self.payments_table.setHorizontalHeaderLabels(["وسيلة الدفع", "المبلغ"])
+        self.payments_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.history = QTableWidget(0, 7)
-        self.history.setHorizontalHeaderLabels(
-            ["التاريخ", "رقم الفاتورة", "العميل", "الصنف", "الكمية", "الإجمالي", "الحالة"]
-        )
+        self.history.setHorizontalHeaderLabels(["التاريخ", "رقم الفاتورة", "العميل", "الصنف", "الكمية", "الإجمالي", "الحالة"])
         self.history.setEditTriggers(QTableWidget.NoEditTriggers)
         self._build()
         self.refresh_data()
@@ -66,20 +70,16 @@ class SalesPage(QWidget):
         title = QLabel("فاتورة بيع جديدة")
         title.setObjectName("pageTitle")
         root.addWidget(title)
-        description = QLabel(
-            "أضف عدة أصناف إلى الفاتورة مرة واحدة، وسيقوم النظام بربط الفاتورة بالمخزون والصندوق وذمم العميل عند الحاجة."
-        )
+        description = QLabel("أضف عدة أصناف إلى الفاتورة، ويمكن تقسيم المبلغ المدفوع بين النقد والمحفظة والتحويل البنكي، أو تركه آجلًا.")
         description.setWordWrap(True)
         description.setObjectName("pageDescription")
         root.addWidget(description)
-
         form = QFormLayout()
         form.addRow("الصنف", self.product)
         form.addRow("الكمية", self.quantity)
         form.addRow("سعر البيع", self.price)
         form.addRow("الرصيد المتاح", self.stock_label)
         root.addLayout(form)
-
         line_buttons = QHBoxLayout()
         add_line = QPushButton("إضافة الصنف للفاتورة")
         add_line.setObjectName("primaryButton")
@@ -93,13 +93,28 @@ class SalesPage(QWidget):
         line_buttons.addWidget(clear_lines)
         root.addLayout(line_buttons)
         root.addWidget(self.lines_table, 1)
-
+        payment_form = QFormLayout()
+        payment_form.addRow("العميل", self.customer)
+        payment_form.addRow("وسيلة الدفع الحالية", self.payment_method)
+        payment_form.addRow("مبلغ الدفع", self.payment)
+        root.addLayout(payment_form)
+        payment_buttons = QHBoxLayout()
+        add_payment = QPushButton("إضافة دفعة")
+        add_payment.clicked.connect(self.add_payment)
+        remove_payment = QPushButton("حذف الدفعة المحددة")
+        remove_payment.clicked.connect(self.remove_payment)
+        clear_payments = QPushButton("مسح الدفعات")
+        clear_payments.clicked.connect(self.clear_payments)
+        payment_buttons.addWidget(add_payment)
+        payment_buttons.addWidget(remove_payment)
+        payment_buttons.addWidget(clear_payments)
+        root.addLayout(payment_buttons)
+        root.addWidget(self.payments_table)
         summary = QFormLayout()
-        summary.addRow("العميل", self.customer)
-        summary.addRow("المبلغ المدفوع", self.payment)
         summary.addRow("إجمالي الفاتورة", self.total_label)
+        summary.addRow("إجمالي المدفوع", self.paid_label)
+        summary.addRow("المتبقي", self.remaining_label)
         root.addLayout(summary)
-
         buttons = QHBoxLayout()
         save = QPushButton("حفظ وتأكيد الفاتورة")
         save.setObjectName("primaryButton")
@@ -118,7 +133,6 @@ class SalesPage(QWidget):
         root.addLayout(buttons)
         root.addWidget(QLabel("آخر فواتير البيع"))
         root.addWidget(self.history, 1)
-
         self.product.currentIndexChanged.connect(self.product_changed)
         self.quantity.valueChanged.connect(self.product_changed)
         self.price.valueChanged.connect(self.recalculate)
@@ -130,56 +144,40 @@ class SalesPage(QWidget):
             current_product = self.product.currentData()
             self.product.blockSignals(True)
             self.product.clear()
-            for product in session.scalars(
-                select(Product).where(Product.is_active.is_(True)).order_by(Product.name)
-            ).all():
+            for product in session.scalars(select(Product).where(Product.is_active.is_(True)).order_by(Product.name)).all():
                 self.product.addItem(f"{product.name} — {product.sku}", product.id)
             if current_product is not None:
                 idx = self.product.findData(current_product)
                 if idx >= 0:
                     self.product.setCurrentIndex(idx)
             self.product.blockSignals(False)
-
             current_customer = self.customer.currentData()
             self.customer.blockSignals(True)
             self.customer.clear()
             self.customer.addItem("بدون عميل / بيع نقدي", None)
-            for customer in session.scalars(
-                select(Customer).where(Customer.is_active.is_(True)).order_by(Customer.name)
-            ).all():
+            for customer in session.scalars(select(Customer).where(Customer.is_active.is_(True)).order_by(Customer.name)).all():
                 self.customer.addItem(f"{customer.name} — {customer.code}", customer.id)
             if current_customer is not None:
                 idx = self.customer.findData(current_customer)
                 if idx >= 0:
                     self.customer.setCurrentIndex(idx)
             self.customer.blockSignals(False)
-
-            location = session.scalar(
-                select(StockLocation)
-                .where(StockLocation.is_active.is_(True))
-                .order_by(StockLocation.id)
-                .limit(1)
-            )
+            current_method = self.payment_method.currentData()
+            self.payment_method.blockSignals(True)
+            self.payment_method.clear()
+            for method in session.scalars(select(PaymentMethod).where(PaymentMethod.is_active.is_(True)).order_by(PaymentMethod.code)).all():
+                self.payment_method.addItem(f"{method.code} — {method.name}", method.code)
+            if current_method is not None:
+                idx = self.payment_method.findData(current_method)
+                if idx >= 0:
+                    self.payment_method.setCurrentIndex(idx)
+            self.payment_method.blockSignals(False)
+            location = session.scalar(select(StockLocation).where(StockLocation.is_active.is_(True)).order_by(StockLocation.id).limit(1))
             self.location_id = location.id if location else None
-            rows = session.execute(
-                select(Sale, Customer, Product, SaleItem.quantity)
-                .outerjoin(Customer, Customer.id == Sale.customer_id)
-                .join(SaleItem, SaleItem.sale_id == Sale.id)
-                .join(Product, Product.id == SaleItem.product_id)
-                .order_by(Sale.id.desc())
-                .limit(100)
-            ).all()
+            rows = session.execute(select(Sale, Customer, Product, SaleItem.quantity).outerjoin(Customer, Customer.id == Sale.customer_id).join(SaleItem, SaleItem.sale_id == Sale.id).join(Product, Product.id == SaleItem.product_id).order_by(Sale.id.desc()).limit(100)).all()
             self.history.setRowCount(len(rows))
             for r, (sale, customer, product, quantity) in enumerate(rows):
-                values = [
-                    sale.business_date,
-                    sale.document_no,
-                    customer.name if customer else "نقدي",
-                    product.name,
-                    f"{quantity:,.3f}",
-                    f"{sale.total:,.2f}",
-                    sale.payment_status,
-                ]
+                values = [sale.business_date, sale.document_no, customer.name if customer else "نقدي", product.name, f"{quantity:,.3f}", f"{sale.total:,.2f}", sale.payment_status]
                 for c, value in enumerate(values):
                     self.history.setItem(r, c, QTableWidgetItem(str(value)))
             self.history.resizeColumnsToContents()
@@ -207,15 +205,19 @@ class SalesPage(QWidget):
         finally:
             session.close()
 
+    def _payments_total(self):
+        return sum((line["amount"] for line in self.payment_lines), Decimal("0"))
+
     def recalculate(self):
-        total = Decimal("0")
-        for line in self.lines:
-            total += line["total"]
-        self.total_label.setText(f"{total:,.2f}")
-        if not self.lines and self.payment.value() != 0:
-            self.payment.setValue(0)
-        elif self.payment.value() == 0 and total > 0:
+        total = sum((line["total"] for line in self.lines), Decimal("0"))
+        paid = self._payments_total()
+        if not self.payment_lines and self.lines and self.payment.value() == 0:
             self.payment.setValue(float(total))
+        current = Decimal(str(self.payment.value()))
+        display_paid = paid + current
+        self.total_label.setText(f"{total:,.2f}")
+        self.paid_label.setText(f"{display_paid:,.2f}")
+        self.remaining_label.setText(f"{max(total - display_paid, Decimal('0')):,.2f}")
 
     def add_line(self):
         product_id = self.product.currentData()
@@ -243,7 +245,6 @@ class SalesPage(QWidget):
         if quantity > Decimal(str(stock)):
             QMessageBox.warning(self, "المخزون غير كافٍ", f"المتاح: {stock:,.3f}")
             return
-
         existing = next((line for line in self.lines if line["product_id"] == product_id), None)
         if existing:
             new_qty = existing["quantity"] + quantity
@@ -254,29 +255,14 @@ class SalesPage(QWidget):
             existing["unit_price"] = price
             existing["total"] = new_qty * price
         else:
-            self.lines.append({
-                "product_id": product_id,
-                "name": product.name,
-                "quantity": quantity,
-                "unit_price": price,
-                "discount": Decimal("0"),
-                "total": quantity * price,
-                "stock": Decimal(str(stock)),
-            })
+            self.lines.append({"product_id": product_id, "name": product.name, "quantity": quantity, "unit_price": price, "discount": Decimal("0"), "total": quantity * price, "stock": Decimal(str(stock))})
         self.refresh_lines_table()
         self.quantity.setValue(1)
 
     def refresh_lines_table(self):
         self.lines_table.setRowCount(len(self.lines))
         for row, line in enumerate(self.lines):
-            values = [
-                line["name"],
-                f"{line['quantity']:,.3f}",
-                f"{line['unit_price']:,.2f}",
-                f"{line['discount']:,.2f}",
-                f"{line['total']:,.2f}",
-                f"{line['stock']:,.3f}",
-            ]
+            values = [line["name"], f"{line['quantity']:,.3f}", f"{line['unit_price']:,.2f}", f"{line['discount']:,.2f}", f"{line['total']:,.2f}", f"{line['stock']:,.3f}"]
             for col, value in enumerate(values):
                 self.lines_table.setItem(row, col, QTableWidgetItem(str(value)))
         self.lines_table.resizeColumnsToContents()
@@ -293,7 +279,49 @@ class SalesPage(QWidget):
     def clear_lines(self):
         self.lines.clear()
         self.refresh_lines_table()
+        self.clear_payments()
+
+    def add_payment(self):
+        method = self.payment_method.currentData()
+        amount = Decimal(str(self.payment.value())).quantize(Decimal("0.01"))
+        total = sum((line["total"] for line in self.lines), Decimal("0"))
+        if not self.lines:
+            QMessageBox.warning(self, "الفاتورة فارغة", "أضف أصناف الفاتورة أولًا.")
+            return
+        if not method or amount <= 0:
+            QMessageBox.warning(self, "دفعة غير صحيحة", "اختر وسيلة دفع وأدخل مبلغًا أكبر من صفر.")
+            return
+        if self._payments_total() + amount > total:
+            QMessageBox.warning(self, "مبلغ زائد", "مجموع الدفعات لا يمكن أن يتجاوز إجمالي الفاتورة.")
+            return
+        self.payment_lines.append({"payment_method": method, "amount": amount})
+        self.refresh_payments_table()
         self.payment.setValue(0)
+
+    def refresh_payments_table(self):
+        self.payments_table.setRowCount(len(self.payment_lines))
+        session = get_session()
+        try:
+            names = {m.code: m.name for m in session.scalars(select(PaymentMethod)).all()}
+        finally:
+            session.close()
+        for row, line in enumerate(self.payment_lines):
+            self.payments_table.setItem(row, 0, QTableWidgetItem(names.get(line["payment_method"], line["payment_method"])))
+            self.payments_table.setItem(row, 1, QTableWidgetItem(f"{line['amount']:,.2f}"))
+        self.payments_table.resizeColumnsToContents()
+        self.recalculate()
+
+    def remove_payment(self):
+        row = self.payments_table.currentRow()
+        if row >= 0:
+            self.payment_lines.pop(row)
+            self.refresh_payments_table()
+
+    def clear_payments(self):
+        self.payment_lines.clear()
+        self.payments_table.setRowCount(0)
+        self.payment.setValue(0)
+        self.recalculate()
 
     def create_sale(self):
         if not self.lines:
@@ -303,7 +331,15 @@ class SalesPage(QWidget):
             QMessageBox.warning(self, "المخزون غير مهيأ", "لا يوجد موقع مخزون نشط.")
             return
         total = sum((line["total"] for line in self.lines), Decimal("0"))
-        paid = Decimal(str(self.payment.value()))
+        payments = list(self.payment_lines)
+        current_amount = Decimal(str(self.payment.value())).quantize(Decimal("0.01"))
+        if current_amount > 0:
+            method = self.payment_method.currentData() or "CASH"
+            if self._payments_total() + current_amount > total:
+                QMessageBox.warning(self, "مبلغ غير صحيح", "مجموع الدفعات لا يمكن أن يتجاوز إجمالي الفاتورة.")
+                return
+            payments.append({"payment_method": method, "amount": current_amount})
+        paid = sum((p["amount"] for p in payments), Decimal("0"))
         if paid > total:
             QMessageBox.warning(self, "مبلغ غير صحيح", "المبلغ المدفوع لا يمكن أن يتجاوز إجمالي الفاتورة.")
             return
@@ -316,27 +352,13 @@ class SalesPage(QWidget):
                 document_no=f"S-{date.today().strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}",
                 business_date=date.today().isoformat(),
                 customer_id=self.customer.currentData(),
-                items=[
-                    {
-                        "product_id": line["product_id"],
-                        "stock_location_id": self.location_id,
-                        "quantity": str(line["quantity"]),
-                        "unit_price": str(line["unit_price"]),
-                        "discount": str(line["discount"]),
-                    }
-                    for line in self.lines
-                ],
-                payments=[{"payment_method": "CASH", "amount": str(paid)}] if paid > 0 else [],
+                items=[{"product_id": line["product_id"], "stock_location_id": self.location_id, "quantity": str(line["quantity"]), "unit_price": str(line["unit_price"]), "discount": str(line["discount"])} for line in self.lines],
+                payments=[{"payment_method": p["payment_method"], "amount": str(p["amount"]), "currency": "BASE"} for p in payments],
                 idempotency_key=str(uuid4()),
             )
             session.commit()
-            QMessageBox.information(
-                self,
-                "تم الحفظ",
-                f"تم تأكيد فاتورة البيع رقم {sale.document_no} بإجمالي {sale.total:,.2f}.",
-            )
+            QMessageBox.information(self, "تم الحفظ", f"تم تأكيد فاتورة البيع رقم {sale.document_no} بإجمالي {sale.total:,.2f}.")
             self.clear_lines()
-            self.payment.setValue(float(total))
             self.refresh_data()
         except Exception as exc:
             session.rollback()
@@ -357,23 +379,17 @@ class SalesPage(QWidget):
                 QMessageBox.warning(self, "الفاتورة غير موجودة", "تعذر العثور على الفاتورة المحددة.")
                 return
             customer = session.get(Customer, sale.customer_id) if sale.customer_id else None
-            lines = session.execute(
-                select(Product.name, SaleItem.quantity, SaleItem.unit_price, SaleItem.line_total)
-                .join(Product, Product.id == SaleItem.product_id)
-                .where(SaleItem.sale_id == sale.id)
-            ).all()
+            lines = session.execute(select(Product.name, SaleItem.quantity, SaleItem.unit_price, SaleItem.line_total).join(Product, Product.id == SaleItem.product_id).where(SaleItem.sale_id == sale.id)).all()
             rows = [(name, f"{quantity:,.3f}", unit_price, line_total) for name, quantity, unit_price, line_total in lines]
             printer = QPrinter(QPrinter.HighResolution)
             printer.setPageSize(QPageSize(QPageSize.A4))
             preview = QPrintPreviewDialog(printer, self)
             preview.setWindowTitle(f"معاينة فاتورة البيع {sale.document_no}")
-
             def render(target):
                 document = QTextDocument()
                 html = f"<html><head><meta charset='utf-8'><style>body{{font-family:Arial;direction:rtl}}h1{{text-align:center}}table{{width:100%;border-collapse:collapse}}th,td{{border:1px solid #777;padding:7px;text-align:right}}.brand{{text-align:center;margin-top:30px;font-size:11px}}</style></head><body><h1>فاتورة بيع</h1><p><b>رقم الفاتورة:</b> {sale.document_no}<br><b>التاريخ:</b> {sale.business_date}<br><b>العميل:</b> {customer.name if customer else 'نقدي'}</p><table><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>{''.join(f'<tr><td>{n}</td><td>{q}</td><td>{p:,.2f}</td><td>{t:,.2f}</td></tr>' for n,q,p,t in rows)}</table><p><b>الإجمالي:</b> {sale.total:,.2f}<br><b>المدفوع:</b> {sale.paid_amount:,.2f}<br><b>المتبقي:</b> {sale.credit_amount:,.2f}</p><div class='brand'>نظام إدارة البقالات<br>تصميم وتنفيذ المهندس / زكريا الحاج<br>لطلب البرنامج او تقديم المساعدة او طلب برامج اخرى التواصل على الرقم 772233564</div></body></html>"
                 document.setHtml(html)
                 document.print_(target)
-
             preview.paintRequested.connect(render)
             preview.resize(900, 700)
             preview.exec()
