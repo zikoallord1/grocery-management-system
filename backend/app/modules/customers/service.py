@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import case, func, select
@@ -33,19 +34,16 @@ class CustomerService:
 
     def get_balance(self, customer_id: int) -> Decimal:
         session = self._get_session()
-
         signed = case(
             (CustomerAccountMovement.direction == "DEBIT", CustomerAccountMovement.amount),
             (CustomerAccountMovement.direction == "CREDIT", -CustomerAccountMovement.amount),
             else_=0,
         )
-
         value = session.execute(
             select(func.coalesce(func.sum(signed), 0)).where(
                 CustomerAccountMovement.customer_id == customer_id
             )
         ).scalar_one()
-
         return Decimal(str(value))
 
     def register_sale_credit(
@@ -59,29 +57,22 @@ class CustomerService:
         created_by: int | None = None,
     ):
         session = self._get_session()
-
         customer = session.get(Customer, customer_id)
         if customer is None or not customer.is_active:
             raise CustomerError("Customer does not exist or is inactive.")
-
         if amount <= 0:
             raise CustomerCreditError("Credit amount must be greater than zero.")
-
         existing = session.execute(
             select(CustomerAccountMovement.id).where(
                 CustomerAccountMovement.idempotency_key == idempotency_key
             )
         ).scalar_one_or_none()
-
         if existing is not None:
             raise DuplicateCustomerOperationError("Duplicate customer account operation.")
-
         current = self.get_balance(customer_id)
         new_balance = current + amount
-
         if customer.credit_limit is not None and new_balance > Decimal(str(customer.credit_limit)):
             raise CustomerCreditError("Customer credit limit would be exceeded.")
-
         movement = CustomerAccountMovement(
             customer_id=customer_id,
             movement_type="SALE_CREDIT",
@@ -94,7 +85,6 @@ class CustomerService:
             idempotency_key=idempotency_key,
             created_by=created_by,
         )
-
         session.add(movement)
         session.flush()
         self._business_engine.process(
@@ -102,6 +92,7 @@ class CustomerService:
             BusinessEvent(
                 event_type="CUSTOMER_SALE_CREDIT_REGISTERED",
                 operation_id=idempotency_key,
+                business_date=date.fromisoformat(business_date),
                 payload={
                     "entity_type": "CUSTOMER",
                     "entity_id": customer_id,
@@ -126,28 +117,21 @@ class CustomerService:
         created_by: int | None = None,
     ):
         session = self._get_session()
-
         customer = session.get(Customer, customer_id)
         if customer is None or not customer.is_active:
             raise CustomerError("Customer does not exist or is inactive.")
-
         if amount <= 0:
             raise CustomerError("Payment amount must be greater than zero.")
-
         existing = session.execute(
             select(CustomerPayment.id).where(
                 CustomerPayment.idempotency_key == idempotency_key
             )
         ).scalar_one_or_none()
-
         if existing is not None:
             raise DuplicateCustomerOperationError("Duplicate customer payment.")
-
         current = self.get_balance(customer_id)
-
         if amount > current:
             raise CustomerError(f"Payment exceeds outstanding balance: balance={current}")
-
         payment = CustomerPayment(
             customer_id=customer_id,
             amount=amount,
@@ -158,7 +142,6 @@ class CustomerService:
             idempotency_key=idempotency_key,
             created_by=created_by,
         )
-
         movement = CustomerAccountMovement(
             customer_id=customer_id,
             movement_type="CUSTOMER_PAYMENT",
@@ -171,7 +154,6 @@ class CustomerService:
             idempotency_key=f"{idempotency_key}:movement",
             created_by=created_by,
         )
-
         session.add_all([payment, movement])
         session.flush()
         self._business_engine.process(
@@ -179,6 +161,7 @@ class CustomerService:
             BusinessEvent(
                 event_type="CUSTOMER_PAYMENT_RECEIVED",
                 operation_id=idempotency_key,
+                business_date=date.fromisoformat(business_date),
                 payload={
                     "entity_type": "CUSTOMER_PAYMENT",
                     "entity_id": payment.id,
