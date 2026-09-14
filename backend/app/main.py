@@ -1,4 +1,4 @@
-﻿from .core.database import initialize_database
+from .core.database import initialize_database
 
 
 def main():
