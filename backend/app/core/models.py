@@ -1,20 +1,228 @@
-﻿from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+﻿from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    CheckConstraint,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
+
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False, unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+    )
+
+    products: Mapped[list["Product"]] = relationship(back_populates="category")
+
+
+class Unit(Base):
+    __tablename__ = "units"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    symbol: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    products: Mapped[list["Product"]] = relationship(back_populates="default_unit")
 
 
 class Product(Base):
     __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    sku: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    sku: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    purchase_price: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
-    sale_price: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id"),
+        nullable=True,
+    )
+    default_unit_id: Mapped[int] = mapped_column(
+        ForeignKey("units.id"),
+        nullable=False,
+    )
+    purchase_price: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+        default=0,
+    )
+    sale_price: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+        default=0,
+    )
+    minimum_stock: Mapped[Decimal] = mapped_column(
+        Numeric(14, 3),
+        nullable=False,
+        default=0,
+    )
+    reorder_level: Mapped[Decimal] = mapped_column(
+        Numeric(14, 3),
+        nullable=False,
+        default=0,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+    category: Mapped["Category | None"] = relationship(back_populates="products")
+    default_unit: Mapped["Unit"] = relationship(back_populates="products")
+    barcodes: Mapped[list["ProductBarcode"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+    stock_movements: Mapped[list["StockMovement"]] = relationship(
+        back_populates="product"
+    )
+
+
+class ProductBarcode(Base):
+    __tablename__ = "product_barcodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        nullable=False,
+        index=True,
+    )
+    barcode: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    barcode_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="EAN",
+    )
+    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    product: Mapped["Product"] = relationship(back_populates="barcodes")
+
+
+class StockLocation(Base):
+    __tablename__ = "stock_locations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    location_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="STORE",
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    movements: Mapped[list["StockMovement"]] = relationship(
+        back_populates="stock_location"
+    )
+
+
+class StockMovement(Base):
+    __tablename__ = "stock_movements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        nullable=False,
+        index=True,
+    )
+    stock_location_id: Mapped[int] = mapped_column(
+        ForeignKey("stock_locations.id"),
+        nullable=False,
+        index=True,
+    )
+    movement_type: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+    )
+    quantity: Mapped[Decimal] = mapped_column(
+        Numeric(14, 3),
+        nullable=False,
+    )
+    direction: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+    )
+    unit_cost: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+        default=0,
+    )
+    reference_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+    reference_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+    business_date: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        unique=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+    )
+
+    product: Mapped["Product"] = relationship(back_populates="stock_movements")
+    stock_location: Mapped["StockLocation"] = relationship(
+        back_populates="movements"
+    )
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_stock_movement_quantity_positive"),
+        CheckConstraint(
+            "direction IN ('IN', 'OUT')",
+            name="ck_stock_movement_direction",
+        ),
     )
