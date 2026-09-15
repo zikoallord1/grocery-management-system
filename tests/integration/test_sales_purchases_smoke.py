@@ -6,7 +6,7 @@ from uuid import uuid4
 def test_sales_and_purchases_accept_input():
     from sqlalchemy import select
     from backend.app.core.database import get_session, initialize_database
-    from backend.app.core.models import Product, StockLocation, Customer, Supplier
+    from backend.app.core.models import Product, StockLocation, Customer, Supplier, Unit
     from backend.app.modules.finance.models import Cashbox
     from backend.app.modules.finance.service import CashboxService
     from backend.app.modules.inventory.service import InventoryService
@@ -19,7 +19,9 @@ def test_sales_and_purchases_accept_input():
     try:
         location = session.scalar(select(StockLocation).where(StockLocation.code == "MAIN"))
         assert location is not None
-        product = Product(sku=f"SMK-{suffix}", name=f"صنف مبيعات {suffix}", default_unit_id=1, purchase_price=Decimal("10"), sale_price=Decimal("15"), minimum_stock=Decimal("0"), reorder_level=Decimal("0"), is_active=True)
+        unit = session.scalar(select(Unit).where(Unit.is_active.is_(True)).order_by(Unit.id))
+        assert unit is not None
+        product = Product(sku=f"SMK-{suffix}", name=f"صنف مبيعات {suffix}", default_unit_id=unit.id, purchase_price=Decimal("10"), sale_price=Decimal("15"), minimum_stock=Decimal("0"), reorder_level=Decimal("0"), is_active=True)
         session.add(product); session.flush()
         customer = Customer(code=f"SMK-C-{suffix}", name=f"عميل {suffix}", is_active=True)
         supplier = Supplier(code=f"SMK-S-{suffix}", name=f"مورد {suffix}", is_active=True)
