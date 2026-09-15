@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -38,6 +40,28 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expi
 
 def get_session():
     return SessionLocal()
+
+
+def _ensure_default_login():
+    """Create the documented first-run administrator when no users file exists."""
+    users_file = DATA_DIR / "users.json"
+    if users_file.exists():
+        try:
+            data = json.loads(users_file.read_text(encoding="utf-8"))
+            if isinstance(data, list) and data:
+                return
+        except (OSError, ValueError):
+            pass
+    password_hash = hashlib.sha256("admin123".encode("utf-8")).hexdigest()
+    payload = [{
+        "id": "admin",
+        "username": "admin",
+        "display_name": "مدير النظام",
+        "role": "admin",
+        "active": True,
+        "password_hash": password_hash,
+    }]
+    users_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _ensure_default_finance_setup():
@@ -96,4 +120,5 @@ def initialize_database():
 
     Base.metadata.create_all(bind=engine)
     AuditLog.__table__.create(bind=engine, checkfirst=True)
+    _ensure_default_login()
     _ensure_default_finance_setup()
