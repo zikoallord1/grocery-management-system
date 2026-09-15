@@ -10,16 +10,18 @@ from frontend.app.ui.font_setup import setup_application_font
 from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.main_window import MainWindow
 from frontend.app.ui.permissions_page import PermissionsPage
+from frontend.app.ui.products_page import ProductsPage
 from frontend.app.ui.settings_page import SettingsPage
 from frontend.app.ui.users_page import UsersPage
 
 
 def _add_admin_modules(window):
-    """Add administration modules to the existing top navigation without rebuilding the main window."""
+    """Add administration and product-management modules to the existing top navigation."""
     root_layout = window.centralWidget().layout()
     nav = root_layout.itemAt(1).widget()
     nav_layout = nav.layout()
     modules = [
+        ("الأصناف", ProductsPage),
         ("المستخدمون", UsersPage),
         ("الصلاحيات", PermissionsPage),
         ("الإعدادات", SettingsPage),
@@ -37,7 +39,7 @@ def _add_admin_modules(window):
         button.clicked.connect(lambda checked=False, name=label: window._show_page(name))
         nav_layout.addWidget(button)
         window._nav_buttons[label] = button
-        window._specs[label] = (label, "إدارة إعدادات النظام والمستخدمين والصلاحيات.", [])
+        window._specs[label] = (label, "إدارة الأصناف والمستخدمين والصلاحيات وإعدادات النظام.", [])
 
 
 def main():
@@ -64,8 +66,6 @@ def main():
     _add_admin_modules(window)
     window.refresh_dashboard()
 
-    # Automatic daily closing + backup runs on startup and then every minute.
-    # The controller is owned by the window so it stops cleanly on exit.
     maintenance = DailyMaintenanceController(window)
     window.daily_maintenance = maintenance
     maintenance.start()
