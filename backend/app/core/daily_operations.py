@@ -3,34 +3,23 @@ from __future__ import annotations
 import sqlite3
 import threading
 import zipfile
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer
-from sqlalchemy import event, select
-from sqlalchemy.orm import Session
+from sqlalchemy import DateTime, Integer, String, event, select
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from backend.app.core.database import Base, DATABASE_PATH, SessionLocal
-
-
-class DailyClose(Base):
-    __tablename__ = "daily_closes"
-
-    id = Base.metadata.tables.get("daily_closes")
-    # The table is declared below through a small declarative class factory to
-    # keep this module independent from the large core models file.
-
-
-# Replace the placeholder above with a normal mapped class at import time.
-from sqlalchemy import DateTime, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from backend.app.core.database import Base, DATABASE_PATH, SessionLocal, engine
 
 
 class DailyClose(Base):
     __tablename__ = "daily_closes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    business_date: Mapped[str] = mapped_column(String(10), nullable=False, unique=True, index=True)
+    business_date: Mapped[str] = mapped_column(
+        String(10), nullable=False, unique=True, index=True
+    )
     closed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="CLOSED")
     backup_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
@@ -42,7 +31,7 @@ _MAINTENANCE_LOCK = threading.Lock()
 
 
 def ensure_daily_close_table() -> None:
-    DailyClose.__table__.create(bind=Base.metadata.bind or SessionLocal.kw["bind"], checkfirst=True)
+    DailyClose.__table__.create(bind=engine, checkfirst=True)
 
 
 def ensure_business_date_open(session: Session, business_date: str) -> None:
@@ -54,21 +43,21 @@ def ensure_business_date_open(session: Session, business_date: str) -> None:
         )
     ).scalar_one_or_none()
     if closed is not None:
-        raise RuntimeError(f"اليوم {business_date} مقفل ولا يمكن إضافة حركة جديدة عليه.")
+        raise RuntimeError(
+            f"اليوم {business_date} مقفل ولا يمكن إضافة حركة جديدة عليه."
+        )
 
 
 @event.listens_for(Session, "before_flush")
-def _prevent_writes_to_closed_days(session: Session, flush_context, instances) -> None:
+def _prevent_writes_to_closed_days(
+    session: Session, flush_context, instances
+) -> None:
     dates = set()
     for obj in session.new:
         value = getattr(obj, "business_date", None)
         if value is not None and not isinstance(obj, DailyClose):
             dates.add(str(value))
 
-    if not dates:
-        return
-
-    # The table is created during application startup before normal writes.
     for business_date in dates:
         ensure_business_date_open(session, business_date)
 
@@ -91,7 +80,9 @@ def create_daily_backup(business_date: str) -> Path:
 
     _sqlite_backup(temporary_db)
     try:
-        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_DEFLATED
+        ) as archive:
             archive.write(temporary_db, arcname="grocery.db")
     finally:
         temporary_db.unlink(missing_ok=True)
@@ -100,15 +91,9 @@ def create_daily_backup(business_date: str) -> Path:
 
 
 def close_previous_day(now: datetime | None = None) -> Path | None:
-    """Close yesterday once and create its automatic backup.
-
-    If the application was not running at midnight, the next startup performs
-    the same operation safely. A failed backup leaves the day in FAILED state
-    so the next maintenance pass retries it.
-    """
+    """Close yesterday once and create its automatic backup."""
     current = now or datetime.now()
-    target = current.date() - timedelta(days=1)
-    target_text = target.isoformat()
+    target_text = (current.date() - timedelta(days=1)).isoformat()
 
     with _MAINTENANCE_LOCK:
         session = SessionLocal()
@@ -178,8 +163,7 @@ class DailyMaintenanceController(QObject):
         try:
             run_daily_maintenance()
         except Exception:
-            # Maintenance must never stop the sales application. A subsequent
-            # timer tick retries the operation.
+            # Never interrupt sales. The next timer tick retries maintenance.
             return
 
     def stop(self) -> None:
