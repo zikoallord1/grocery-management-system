@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from time import monotonic
 
-from PySide6.QtCore import QTimer, Qt, Signal
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import QTimer, Qt, Signal, QPoint
+from PySide6.QtGui import QImage, QPixmap, QCursor
 from PySide6.QtMultimedia import QCamera, QMediaCaptureSession, QMediaDevices, QVideoFrame, QVideoSink
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 try:
     import numpy as np
@@ -16,15 +16,19 @@ except Exception:
 
 
 class BarcodeScannerWidget(QFrame):
-    """Persistent camera scanner: it stays visible and the camera remains running."""
+    """Persistent camera scanner that can be freely moved with the mouse."""
 
     barcode_detected = Signal(str)
+    moved_by_user = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("barcodeScanner")
         self.setFixedSize(270, 205)
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setCursor(QCursor(Qt.OpenHandCursor))
+        self._drag_start = QPoint()
+        self._dragging = False
         self._camera: QCamera | None = None
         self._session = QMediaCaptureSession()
         self._sink = QVideoSink(self)
@@ -55,6 +59,37 @@ class BarcodeScannerWidget(QFrame):
         self.code_label = QLabel("الباركود: —")
         self.code_label.setObjectName("scannerCode")
         root.addWidget(self.code_label)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._dragging = True
+            self._drag_start = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self.setCursor(QCursor(Qt.ClosedHandCursor))
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._dragging and event.buttons() & Qt.LeftButton:
+            parent = self.parentWidget()
+            if parent is not None:
+                pos = event.globalPosition().toPoint() - self._drag_start
+                local = parent.mapFromGlobal(pos)
+                max_x = max(0, parent.width() - self.width())
+                max_y = max(0, parent.height() - self.height())
+                self.move(max(0, min(local.x(), max_x)), max(0, min(local.y(), max_y)))
+                self.moved_by_user.emit()
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self._dragging:
+            self._dragging = False
+            self.setCursor(QCursor(Qt.OpenHandCursor))
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def start_camera(self):
         if self._camera is not None:
@@ -105,7 +140,7 @@ class BarcodeScannerWidget(QFrame):
         self.barcode_detected.emit(code)
 
     def toggle(self):
-        """Keep the camera open; clicking the toolbar button only brings it to the front."""
+        """Show the scanner without resetting a position chosen by the user."""
         self.show()
         self.raise_()
         self.start_camera()
