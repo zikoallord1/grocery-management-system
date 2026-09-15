@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, integration-ui-installer-kiosk]
   pull_request:
     branches: [main]
 
@@ -106,6 +106,36 @@ jobs:
       - name: Build license manager executable
         run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "frontend/app/assets/fonts;frontend/app/assets/fonts" --name GroceryLicenseManager license_manager.py
 
+      - name: Validate installer inputs
+        shell: powershell
+        run: |
+          $required = @(
+            "dist/GroceryManagementSystem.exe",
+            "dist/GroceryLicenseManager.exe",
+            "installer/GroceryManagementSystem.iss",
+            "tools/setup_kiosk.ps1",
+            "tools/remove_kiosk.ps1"
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path -LiteralPath $path)) { throw "Missing installer input: $path" }
+          }
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Next Next Finish installer
+        shell: powershell
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\GroceryManagementSystem.iss"'
+
+      - name: Verify installer output
+        shell: powershell
+        run: |
+          $installer = Get-Item -LiteralPath "dist/GroceryManagementSystem-Setup.exe" -ErrorAction SilentlyContinue
+          if ($null -eq $installer) { throw "Installer was not generated" }
+          if ($installer.Length -lt 1000000) { throw "Installer is unexpectedly small: $($installer.Length) bytes" }
+          Write-Host "Installer generated: $($installer.FullName) ($($installer.Length) bytes)"
+
       - name: Prepare client package
         run: python tools/prepare_client_package.py
 
@@ -120,6 +150,12 @@ jobs:
         with:
           name: GroceryLicenseManager-Windows
           path: dist/GroceryLicenseManager.exe
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: GroceryManagementSystem-Setup
+          path: dist/GroceryManagementSystem-Setup.exe
 
       - name: Upload complete client package
         uses: actions/upload-artifact@v4
