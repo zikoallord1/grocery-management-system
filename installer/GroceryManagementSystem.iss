@@ -19,7 +19,6 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 UninstallDisplayIcon={app}\{#MyAppExeName}
-SetupIconFile=..\frontend\app\assets\icon.ico
 
 [Tasks]
 Name: "desktopicon"; Description: "إنشاء اختصار على سطح المكتب"; GroupDescription: "اختصارات البرنامج:"
