@@ -294,3 +294,67 @@ def test_sale_fails_when_stock_is_insufficient():
 
     finally:
         session.close()
+
+
+def test_sale_publishes_sale_confirmed_event():
+    from backend.app.application.business_engine import BusinessEngine
+
+    session = get_session()
+
+    try:
+        product, location = setup_product_and_stock(session)
+
+        engine = BusinessEngine()
+        received = []
+
+        engine.register_rule(
+            name="TEST_CAPTURE_SALE_CONFIRMED",
+            event_type="SALE_CONFIRMED",
+            handler=lambda current_session, event: (
+                received.append(event) or []
+            ),
+        )
+
+        service = SaleService(
+            session,
+            business_engine=engine,
+        )
+
+        sale = service.create_sale(
+            document_no="S-ENGINE-0001",
+            business_date="2026-09-14",
+            items=[
+                {
+                    "product_id": product.id,
+                    "stock_location_id": location.id,
+                    "quantity": "1",
+                    "unit_price": "100",
+                    "discount": "0",
+                }
+            ],
+            payments=[
+                {
+                    "payment_method": "CASH",
+                    "amount": "100",
+                }
+            ],
+            idempotency_key=str(uuid.uuid4()),
+        )
+
+        assert sale.status == "CONFIRMED"
+        assert len(received) == 1
+
+        event = received[0]
+        assert event.event_type == "SALE_CONFIRMED"
+        assert event.operation_id == sale.idempotency_key
+        assert event.payload["sale_id"] == sale.id
+        assert event.payload["document_no"] == "S-ENGINE-0001"
+        assert Decimal(event.payload["total"]) == Decimal("100.00")
+        assert Decimal(event.payload["paid_amount"]) == Decimal("100.00")
+        assert Decimal(event.payload["credit_amount"]) == Decimal("0.00")
+        assert event.payload["payment_status"] == "PAID"
+
+        session.commit()
+
+    finally:
+        session.close()
