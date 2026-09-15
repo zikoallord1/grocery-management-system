@@ -4,7 +4,7 @@ from time import monotonic
 
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
-from PySide6.QtMultimedia import QCamera, QCameraDevice, QMediaCaptureSession, QVideoFrame, QVideoSink
+from PySide6.QtMultimedia import QCamera, QMediaCaptureSession, QMediaDevices, QVideoFrame, QVideoSink
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 try:
@@ -61,7 +61,7 @@ class BarcodeScannerWidget(QFrame):
         root.addWidget(self.code_label)
 
     def start_camera(self):
-        devices = QCameraDevice.videoInputs()
+        devices = QMediaDevices.videoInputs()
         if not devices:
             self.status.setText("لا توجد كاميرا")
             return
