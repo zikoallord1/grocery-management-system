@@ -43,15 +43,17 @@ def test_product_and_expense_entry_accept_data(tmp_path, monkeypatch):
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *args, **kwargs: None))
 
     product = ProductsPage()
+    product.sku.setText("ITM-MINERAL-WATER")
     product.name.setText("ماء معدني")
     product.purchase.setValue(100)
-    product.sale.setValue(150)
+    product.sale_price.setValue(150)
+    assert product.unit.currentData() is not None
     product.save_product()
 
     session = Session()
     saved_product = session.scalar(select(Product).where(Product.name == "ماء معدني"))
     assert saved_product is not None
-    assert saved_product.sku.startswith("ITM-")
+    assert saved_product.sku == "ITM-MINERAL-WATER"
     session.close()
 
     expense = ExpensesPage()
