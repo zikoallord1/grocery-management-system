@@ -133,3 +133,5 @@ def initialize_database():
     AuditLog.__table__.create(bind=engine, checkfirst=True)
     _ensure_default_login()
     _ensure_default_finance_setup()
+    # Keep schema self-healing for an interrupted/partially-created local database.
+    Base.metadata.create_all(bind=engine)
