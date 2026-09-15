@@ -86,8 +86,9 @@ def main():
         maintenance.start()
         window.show()
         window._show_page("الرئيسية")
-        window.barcode_scanner.hide()
         window.barcode_scanner.start_camera()
+        window.barcode_scanner.show()
+        window.barcode_scanner.raise_()
         window.scanner_toggle.setText("📷 قارئ الباركود — الكاميرا جاهزة")
 
         logged_out = {"value": False}
