@@ -9,3 +9,5 @@ opencv-python-headless>=4.10,<5
 pyzbar>=0.1.9,<1
 cryptography>=43,<47
 reportlab>=4,<5
+arabic-reshaper>=3,<4
+python-bidi>=0.4,<1
