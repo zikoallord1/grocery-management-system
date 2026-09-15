@@ -177,6 +177,9 @@ class MainWindow(QMainWindow):
             "مرحبًا بك في نظام إدارة البقالات — تابع المبيعات والمشتريات والمخزون والحسابات من مكان واحد",
             "تذكير: راجع الأصناف منخفضة المخزون قبل بدء يوم البيع",
             "تنبيه: احفظ الفواتير واعتمد العمليات المالية بعد مراجعتها",
+            f"{BRANDING.program_name} — {BRANDING.designer_credit}",
+            f"حقوق التصميم والتنفيذ محفوظة — {BRANDING.contact_text}",
+            f"للتواصل وطلب البرنامج أو المساعدة: {BRANDING.phone_display} — واتساب متاح",
         ]
         self._notification_label.setText(self._notification_messages[0])
 
