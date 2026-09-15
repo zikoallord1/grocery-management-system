@@ -5,7 +5,7 @@ from time import monotonic
 from PySide6.QtCore import QTimer, Qt, Signal, QPoint
 from PySide6.QtGui import QImage, QPixmap, QCursor
 from PySide6.QtMultimedia import QCamera, QMediaCaptureSession, QMediaDevices, QVideoFrame, QVideoSink
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 try:
     import numpy as np
@@ -16,7 +16,7 @@ except Exception:
 
 
 class BarcodeScannerWidget(QFrame):
-    """Persistent camera scanner that can be freely moved with the mouse."""
+    """Persistent camera scanner with a draggable position and visible scan guide."""
 
     barcode_detected = Signal(str)
     moved_by_user = Signal()
@@ -24,11 +24,12 @@ class BarcodeScannerWidget(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("barcodeScanner")
-        self.setFixedSize(270, 205)
+        self.setFixedSize(320, 245)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setCursor(QCursor(Qt.OpenHandCursor))
         self._drag_start = QPoint()
         self._dragging = False
+        self._user_position_locked = False
         self._camera: QCamera | None = None
         self._session = QMediaCaptureSession()
         self._sink = QVideoSink(self)
@@ -53,12 +54,47 @@ class BarcodeScannerWidget(QFrame):
         root.addLayout(header)
         self.preview = QLabel("جاري تجهيز الكاميرا...")
         self.preview.setAlignment(Qt.AlignCenter)
-        self.preview.setMinimumHeight(130)
+        self.preview.setMinimumHeight(155)
         self.preview.setObjectName("scannerPreview")
         root.addWidget(self.preview, 1)
+        self.scan_line = QFrame(self.preview)
+        self.scan_line.setObjectName("barcodeScanLine")
+        self.scan_line.setFixedHeight(3)
+        self.scan_line.setStyleSheet("background:#e53935;")
+        self.scan_line.show()
+        self._scan_timer = QTimer(self)
+        self._scan_timer.timeout.connect(self._move_scan_line)
+        self._scan_direction = 1
+        self._scan_y = 18
+        self._scan_timer.start(35)
         self.code_label = QLabel("الباركود: —")
         self.code_label.setObjectName("scannerCode")
         root.addWidget(self.code_label)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._move_scan_line()
+
+    def _move_scan_line(self):
+        if not self.preview or self.preview.height() <= 10:
+            return
+        top = 12
+        bottom = max(top, self.preview.height() - 14)
+        self._scan_y += self._scan_direction * 2
+        if self._scan_y >= bottom:
+            self._scan_y = bottom
+            self._scan_direction = -1
+        elif self._scan_y <= top:
+            self._scan_y = top
+            self._scan_direction = 1
+        self.scan_line.setGeometry(8, self._scan_y, max(20, self.preview.width() - 16), 3)
+
+    def move(self, *args):
+        # Once the user has chosen a position, automatic resize/reposition calls
+        # from the main window must not take control of the scanner again.
+        if self._user_position_locked and not self._dragging:
+            return
+        return super().move(*args)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -77,7 +113,7 @@ class BarcodeScannerWidget(QFrame):
                 local = parent.mapFromGlobal(pos)
                 max_x = max(0, parent.width() - self.width())
                 max_y = max(0, parent.height() - self.height())
-                self.move(max(0, min(local.x(), max_x)), max(0, min(local.y(), max_y)))
+                super().move(max(0, min(local.x(), max_x)), max(0, min(local.y(), max_y)))
                 self.moved_by_user.emit()
             event.accept()
             return
@@ -86,6 +122,7 @@ class BarcodeScannerWidget(QFrame):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton and self._dragging:
             self._dragging = False
+            self._user_position_locked = True
             self.setCursor(QCursor(Qt.OpenHandCursor))
             event.accept()
             return
@@ -136,7 +173,8 @@ class BarcodeScannerWidget(QFrame):
         self._last_code = code
         self._last_code_at = now
         self.code_label.setText(f"الباركود: {code}")
-        self.status.setText("تمت القراءة — مستمر")
+        self.status.setText(f"تمت قراءة الباركود: {code} — مستمر")
+        QApplication.beep()
         self.barcode_detected.emit(code)
 
     def toggle(self):
