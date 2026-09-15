@@ -71,21 +71,21 @@ jobs:
           Copy-Item "build_docs/تقرير البرنامج.pdf" client-package/
           Copy-Item "build_docs/معلومات الإصدار.txt" client-package/
           Copy-Item "build_docs/screens" client-package/صور-الشرح -Recurse
-          @"
-          Grocery Management System V1.0
-
-          Client package contents:
-          - GroceryManagementSystem.exe - Main application
-          - GroceryLicenseManager.exe - License manager
-          - دليل استخدام البرنامج.pdf - Illustrated user manual
-          - تقرير البرنامج.pdf - Illustrated program report
-          - صور-الشرح - Real interface screenshots
-          - معلومات الإصدار.txt - Version and support information
-
-          Security notice:
-          The private license signing key must remain with the license administrator.
-          Never distribute the private signing key to customers.
-          "@ | Set-Content -Path client-package/README.txt -Encoding UTF8
+          Set-Content -Path client-package/README.txt -Encoding UTF8 -Value @(
+            'Grocery Management System V1.0'
+            ''
+            'Client package contents:'
+            '- GroceryManagementSystem.exe - Main application'
+            '- GroceryLicenseManager.exe - License manager'
+            '- Illustrated user manual PDF'
+            '- Illustrated program report PDF'
+            '- Interface screenshots'
+            '- Version and support information'
+            ''
+            'Security notice:'
+            'The private license signing key must remain with the license administrator.'
+            'Never distribute the private signing key to customers.'
+          )
 
       - name: Upload Windows application
         uses: actions/upload-artifact@v4
