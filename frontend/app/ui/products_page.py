@@ -20,6 +20,7 @@ class ProductsPage(QWidget):
         self.category = SmartComboBox(); self.unit = SmartComboBox()
         self.category.configure_smart_input("ابحث عن الفئة..."); self.unit.configure_smart_input("ابحث عن الوحدة...")
         self.purchase_price = QDoubleSpinBox(); self.sale_price = QDoubleSpinBox()
+        self.purchase = self.purchase_price
         self.minimum_stock = QDoubleSpinBox(); self.reorder_level = QDoubleSpinBox()
         self.active = QCheckBox("الصنف فعال وقابل للبيع"); self.active.setChecked(True)
         for box in (self.purchase_price, self.sale_price): box.setDecimals(2); box.setMaximum(999999999)
