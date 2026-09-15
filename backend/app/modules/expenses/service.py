@@ -47,8 +47,12 @@ class ExpenseService:
         method = self._session.get(PaymentMethod, payment_method_id)
         if method is None or not method.is_active:
             raise ExpenseError("Payment method does not exist or is inactive.")
-        if method.cashbox_id is None:
-            raise ExpenseError("Payment method is not linked to a cash account.")
+
+        # A payment method without a cashbox represents an unpaid/credit expense.
+        # Paid expenses continue to require a linked cash/bank/wallet account.
+        is_credit = method.cashbox_id is None
+        payment_status = "UNPAID" if is_credit else "PAID"
+
         expense = Expense(
             expense_no=expense_no,
             category_id=category_id,
@@ -57,32 +61,35 @@ class ExpenseService:
             currency="BASE",
             business_date=business_date,
             status="CONFIRMED",
-            payment_status="PAID",
+            payment_status=payment_status,
             payment_method_id=payment_method_id,
             idempotency_key=idempotency_key,
             created_by=created_by,
         )
         self._session.add(expense)
         self._session.flush()
-        self._session.add(
-            ExpensePayment(
-                expense_id=expense.id,
-                payment_method_id=payment_method_id,
-                amount=amount,
-                currency="BASE",
+
+        if not is_credit:
+            self._session.add(
+                ExpensePayment(
+                    expense_id=expense.id,
+                    payment_method_id=payment_method_id,
+                    amount=amount,
+                    currency="BASE",
+                )
             )
-        )
-        CashboxService(self._session).move_money(
-            cashbox_id=method.cashbox_id,
-            amount=amount,
-            direction="OUT",
-            movement_type="EXPENSE_PAYMENT",
-            business_date=business_date,
-            idempotency_key=f"{idempotency_key}:cashbox",
-            reference_type="EXPENSE",
-            reference_id=str(expense.id),
-            created_by=created_by,
-        )
+            CashboxService(self._session).move_money(
+                cashbox_id=method.cashbox_id,
+                amount=amount,
+                direction="OUT",
+                movement_type="EXPENSE_PAYMENT",
+                business_date=business_date,
+                idempotency_key=f"{idempotency_key}:cashbox",
+                reference_type="EXPENSE",
+                reference_id=str(expense.id),
+                created_by=created_by,
+            )
+
         self._session.flush()
         self._business_engine.process(
             self._session,
@@ -99,6 +106,7 @@ class ExpenseService:
                     "payment_method_id": payment_method_id,
                     "business_date": business_date,
                     "description": description,
+                    "payment_status": payment_status,
                 },
             ),
         )
