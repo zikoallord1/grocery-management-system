@@ -1,10 +1,17 @@
+import os
+import sys
 from pathlib import Path
 
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DATA_DIR = PROJECT_ROOT / "data"
+
+if getattr(sys, "frozen", False):
+    _local_app_data = os.environ.get("LOCALAPPDATA")
+    DATA_DIR = Path(_local_app_data) / "GroceryManagementSystem" if _local_app_data else Path.home() / "AppData" / "Local" / "GroceryManagementSystem"
+else:
+    DATA_DIR = PROJECT_ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DATABASE_PATH = DATA_DIR / "grocery.db"
@@ -89,6 +96,9 @@ def _ensure_default_finance_setup():
                         cashbox_id=cashboxes[cashbox_code].id,
                     )
                 )
+            elif method.cashbox_id is None:
+                method.cashbox_id = cashboxes[cashbox_code].id
+                method.is_active = True
 
         for name in ["مشتريات", "رواتب وأجور", "كهرباء وماء", "نقل ومواصلات", "صيانة", "اتصالات", "إيجار", "أخرى"]:
             category = session.execute(
