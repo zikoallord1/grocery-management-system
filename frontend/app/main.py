@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from backend.app.core.database import initialize_database
 from backend.app.core.daily_operations import DailyMaintenanceController
 from backend.app.core.licensing import verify_license
+from frontend.app.ui.font_setup import setup_application_font
 from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.main_window import MainWindow
 
@@ -15,6 +16,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("نظام إدارة البقالات")
     app.setLayoutDirection(Qt.RightToLeft)
+    setup_application_font(app)
 
     license_status = verify_license()
     if not license_status.usable:
