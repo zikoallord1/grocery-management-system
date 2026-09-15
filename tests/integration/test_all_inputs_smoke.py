@@ -1,8 +1,7 @@
-from datetime import date
-from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 pytest.importorskip("PySide6")
 
@@ -38,18 +37,10 @@ def test_product_customer_supplier_expense_and_revenue_inputs(qtbot, monkeypatch
     from backend.app.modules.finance.revenue import Revenue
 
     initialize_database()
-    monkeypatch.setattr("frontend.app.ui.products_page.QMessageBox.warning", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.products_page.QMessageBox.critical", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.customers_page.QMessageBox.warning", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.customers_page.QMessageBox.critical", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.suppliers_page.QMessageBox.warning", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.suppliers_page.QMessageBox.critical", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.expenses_page.QMessageBox.warning", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.expenses_page.QMessageBox.critical", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.expenses_page.QMessageBox.information", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.revenues_page.QMessageBox.warning", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.revenues_page.QMessageBox.critical", lambda *a, **k: None)
-    monkeypatch.setattr("frontend.app.ui.revenues_page.QMessageBox.information", lambda *a, **k: None)
+    for module in ("products_page", "customers_page", "suppliers_page", "expenses_page", "revenues_page"):
+        monkeypatch.setattr(f"frontend.app.ui.{module}.QMessageBox.warning", lambda *a, **k: None)
+        monkeypatch.setattr(f"frontend.app.ui.{module}.QMessageBox.critical", lambda *a, **k: None)
+        monkeypatch.setattr(f"frontend.app.ui.{module}.QMessageBox.information", lambda *a, **k: None)
 
     suffix = uuid4().hex[:10].upper()
 
