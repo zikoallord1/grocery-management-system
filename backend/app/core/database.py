@@ -114,6 +114,7 @@ def initialize_database():
     from .audit_models import AuditLog
     from . import models  # noqa: F401
     from . import product_units  # noqa: F401
+    from . import communication_models  # noqa: F401
     from backend.app.modules.finance import models as finance_models  # noqa: F401
     from backend.app.modules.finance import revenue as revenue_model  # noqa: F401
     from . import daily_operations  # noqa: F401
