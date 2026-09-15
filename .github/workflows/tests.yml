@@ -14,8 +14,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Linux Qt and barcode runtime libraries
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libpulse0 libzbar0
+      - name: Install Linux Qt, barcode and Arabic font runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libpulse0 libzbar0 fonts-noto-core
 
       - name: Set up Python
         uses: actions/setup-python@v5
