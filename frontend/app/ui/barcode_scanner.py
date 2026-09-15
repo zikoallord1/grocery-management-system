@@ -16,7 +16,7 @@ except Exception:
 
 
 class BarcodeScannerWidget(QFrame):
-    """Compact camera barcode scanner that stays over the main UI."""
+    """Persistent camera scanner: it stays visible and the camera remains running."""
 
     barcode_detected = Signal(str)
 
@@ -40,18 +40,14 @@ class BarcodeScannerWidget(QFrame):
         root.setContentsMargins(7, 7, 7, 7)
         root.setSpacing(4)
         header = QHBoxLayout()
-        title = QLabel("📷 قارئ الباركود")
+        title = QLabel("📷 قارئ الباركود — مستمر")
         title.setObjectName("scannerTitle")
         self.status = QLabel("جاري تشغيل الكاميرا...")
         self.status.setObjectName("scannerStatus")
         header.addWidget(title)
         header.addStretch()
-        close = QPushButton("×")
-        close.setFixedSize(28, 28)
-        close.clicked.connect(self.hide)
-        header.addWidget(close)
         root.addLayout(header)
-        self.preview = QLabel("الكاميرا غير متاحة")
+        self.preview = QLabel("جاري تجهيز الكاميرا...")
         self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setMinimumHeight(130)
         self.preview.setObjectName("scannerPreview")
@@ -61,6 +57,8 @@ class BarcodeScannerWidget(QFrame):
         root.addWidget(self.code_label)
 
     def start_camera(self):
+        if self._camera is not None:
+            return
         devices = QMediaDevices.videoInputs()
         if not devices:
             self.status.setText("لا توجد كاميرا")
@@ -69,7 +67,7 @@ class BarcodeScannerWidget(QFrame):
         self._session.setCamera(self._camera)
         self._camera.errorOccurred.connect(self._camera_error)
         self._camera.start()
-        self.status.setText("جاهز للمسح")
+        self.status.setText("الكاميرا تعمل — جاهز للمسح المستمر")
 
     def _camera_error(self, _error, message):
         self.status.setText(message or "خطأ في الكاميرا")
@@ -81,9 +79,7 @@ class BarcodeScannerWidget(QFrame):
         if image.isNull():
             return
         image = image.convertToFormat(QImage.Format_RGB888)
-        self.preview.setPixmap(QPixmap.fromImage(image).scaled(
-            self.preview.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
-        ))
+        self.preview.setPixmap(QPixmap.fromImage(image).scaled(self.preview.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
         if np is None or decode_barcodes is None:
             self.status.setText("قارئ الباركود غير مثبت")
             return
@@ -105,17 +101,14 @@ class BarcodeScannerWidget(QFrame):
         self._last_code = code
         self._last_code_at = now
         self.code_label.setText(f"الباركود: {code}")
-        self.status.setText("تمت القراءة")
+        self.status.setText("تمت القراءة — مستمر")
         self.barcode_detected.emit(code)
 
     def toggle(self):
-        if self.isVisible():
-            self.hide()
-        else:
-            self.show()
-            self.raise_()
-            if self._camera is None:
-                self.start_camera()
+        """Keep the camera open; clicking the toolbar button only brings it to the front."""
+        self.show()
+        self.raise_()
+        self.start_camera()
 
     def close_camera(self):
         if self._camera is not None:
