@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 from backend.app.core.database import get_session
 from backend.app.core.models import Product, ProductBarcode
+from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
 from frontend.app.ui.barcode_scanner import BarcodeScannerWidget
 from frontend.app.ui.cashboxes_page import CashboxesPage
@@ -30,7 +31,6 @@ from frontend.app.ui.reports_page import ReportsPage
 from frontend.app.ui.returns_page import ReturnsPage
 from frontend.app.ui.sales_page import SalesPage
 from frontend.app.ui.suppliers_page import SuppliersPage
-from backend.app.modules.reports.service import ReportService
 
 
 class SummaryCard(QFrame):
@@ -94,7 +94,6 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._notification_timer = QTimer(self)
         self._notification_timer.timeout.connect(self._move_notification)
-        # Notifications rotate slowly so the user can comfortably read each message.
         self._notification_timer.start(6000)
 
     def _build_ui(self):
@@ -378,48 +377,69 @@ class MainWindow(QMainWindow):
         try:
             today = date.today().isoformat()
             s = ReportService(session).dashboard_summary(date_from=today, date_to=today)
-            reports = ReportService(session).dashboard_summary(date_from=today, date_to=today)
-            self._cards["sales"].value_label.setText(f"{s['sales_total']:.2f}")
-            self._cards["purchases"].value_label.setText(f"{s['purchases_total']:.2f}")
-            self._cards["expenses"].value_label.setText(f"{s['expenses_total']:.2f}")
-            self._cards["profit"].value_label.setText(f"{s['profit']:.2f}")
-            self._cards["receivables"].value_label.setText(f"{s['receivables']:.2f}")
-            self._cards["payables"].value_label.setText(f"{s['payables']:.2f}")
-            self._cards["cash"].value_label.setText(f"{s['cash_balance']:.2f}")
-            self._cards["low"].value_label.setText(str(s['low_stock_count']))
+            reports = ReportService(session)
+            values = {
+                "sales": s.sales_total,
+                "purchases": s.purchases_total,
+                "expenses": s.expenses_total,
+                "profit": s.gross_profit - s.expenses_total,
+                "receivables": s.customer_receivables,
+                "payables": s.supplier_payables,
+                "cash": s.cash_balance,
+                "low": reports.low_stock_count(),
+            }
+            for key, value in values.items():
+                self._cards[key].value_label.setText(
+                    str(int(value)) if key == "low" else f"{value:,.2f}"
+                )
         finally:
             session.close()
 
-    def _stylesheet(self):
+    def closeEvent(self, event):
+        if hasattr(self, "barcode_scanner"):
+            self.barcode_scanner.close_camera()
+        if hasattr(self, "_notification_timer"):
+            self._notification_timer.stop()
+        super().closeEvent(event)
+
+    @staticmethod
+    def _stylesheet():
         return """
-        QWidget { font-family: 'Noto Sans Arabic'; font-size: 13px; }
-        QMainWindow { background: #f4f7fb; }
-        #header { background: #0f4c81; border-radius: 12px; }
-        #appTitle { color: white; font-size: 24px; font-weight: 700; }
-        #appSubtitle { color: #e6eef7; font-size: 13px; }
-        #topNavigation { background: white; border: 1px solid #d7e0ea; border-radius: 10px; }
-        #navButton { min-height: 42px; padding: 8px 12px; border: none; border-radius: 8px; background: #eef3f8; color: #19324d; font-weight: 600; }
-        #navButton[active="true"] { background: #0f4c81; color: white; }
-        #notificationBar { background: #fff8e1; border: 1px solid #efd27b; border-radius: 8px; min-height: 34px; }
-        #notificationTitle { font-weight: 700; color: #7a5a00; }
-        #notificationText { color: #5b4700; font-size: 13px; }
-        #contentScroll { background: transparent; }
-        #panel { background: white; border: 1px solid #d7e0ea; border-radius: 12px; }
-        #summaryCard { background: white; border: 1px solid #d7e0ea; border-radius: 12px; }
-        #summaryLabel { color: #5c6b7a; font-weight: 600; }
-        #cardValue { color: #153b5c; font-size: 21px; font-weight: 700; }
-        #pageTitle { color: #173b5c; font-size: 20px; font-weight: 700; }
-        #pageDescription { color: #617386; font-size: 13px; }
-        QPushButton { min-height: 38px; padding: 8px 14px; border-radius: 8px; }
-        #primaryButton { background: #1f7a4d; color: white; border: none; }
-        #scannerToggle { background: #ffffff; color: #173b5c; border: 1px solid #cbd7e3; }
-        #actionButton { background: #e9f1f8; color: #173b5c; border: 1px solid #c7d6e4; }
-        #secondaryButton { background: #f1f4f7; color: #3f5368; border: 1px solid #cbd7e3; }
-        #footerPanel { background: white; border-top: 1px solid #d7e0ea; }
-        #linkButton { background: transparent; color: #0f4c81; border: none; min-height: 30px; }
-        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTableWidget, QPlainTextEdit, QTextEdit {
-            min-height: 36px; padding: 6px 8px; border: 1px solid #c7d6e4; border-radius: 7px; background: white;
-        }
-        QHeaderView::section { padding: 8px; font-weight: 700; }
-        QTableWidget { gridline-color: #dce5ee; }
+        QWidget { font-family: 'Noto Sans Arabic', 'Segoe UI', Tahoma, Arial; font-size: 14px; }
+        QMainWindow { background: #f5f7fb; }
+        #header { background: #17324d; border-radius: 12px; }
+        #appTitle { color: white; font-size: 25px; font-weight: 700; }
+        #appSubtitle { color: #dce8f2; font-size: 13px; }
+        #topNavigation { background: white; border: 1px solid #dbe3ec; border-radius: 10px; }
+        #navButton { min-height: 42px; padding: 0 12px; border-radius: 7px; background: #17324d; color: white; border: none; }
+        #navButton[active="true"] { background: #2d6a9f; font-weight: 700; }
+        #notificationBar { background: #eaf1f7; border: 1px solid #cbd9e6; border-radius: 8px; min-height: 34px; }
+        #notificationTitle { color: #17324d; font-weight: 700; min-width: 65px; }
+        #notificationText { color: #294b67; font-size: 13px; }
+        #summaryCard, #panel { background: white; border: 1px solid #dbe3ec; border-radius: 10px; }
+        #summaryCard { min-height: 92px; }
+        #summaryLabel { color: #61758a; }
+        #cardValue { font-size: 23px; font-weight: 700; color: #17324d; }
+        #pageTitle { font-size: 20px; font-weight: 700; color: #17324d; }
+        #pageDescription { color: #61758a; font-size: 14px; line-height: 1.5; }
+        QPushButton { min-height: 40px; padding: 0 14px; border-radius: 7px; border: 1px solid #cbd5df; background: white; }
+        QPushButton:hover { border-color: #8fa6b8; }
+        #primaryButton { background: #17324d; color: white; border: none; }
+        #secondaryButton { background: #eef2f6; }
+        #actionButton { min-height: 48px; padding: 0 12px; }
+        #linkButton { border: none; background: transparent; color: #17324d; }
+        #scannerToggle { background: white; color: #17324d; border: none; }
+        #barcodeScanner { background: white; border: 2px solid #17324d; border-radius: 10px; }
+        #scannerTitle { font-weight: 700; color: #17324d; }
+        #scannerStatus { color: #61758a; font-size: 12px; }
+        #scannerPreview { background: #111827; color: white; border-radius: 8px; }
+        QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QDateTimeEdit { min-height: 38px; padding: 4px 9px; border: 1px solid #cbd5df; border-radius: 6px; background: white; }
+        QComboBox QAbstractItemView { padding: 6px; }
+        QTableWidget, QTableView { background: white; border: 1px solid #dbe3ec; gridline-color: #e1e7ed; alternate-background-color: #f8fafc; }
+        QTableWidget::item, QTableView::item { padding: 7px; }
+        QHeaderView::section { min-height: 36px; padding: 6px 8px; font-weight: 700; background: #eef2f6; border: none; }
+        QFormLayout { spacing: 10px; }
+        QGroupBox { margin-top: 12px; padding-top: 14px; font-weight: 700; }
+        QScrollBar:vertical { width: 12px; margin: 2px; }
+        #footerPanel { background: transparent; }
         """
