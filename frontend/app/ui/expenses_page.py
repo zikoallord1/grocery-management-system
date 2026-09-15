@@ -36,16 +36,18 @@ class ExpensesPage(QWidget):
         title = QLabel("المصروفات")
         title.setObjectName("pageTitle")
         root.addWidget(title)
-        desc = QLabel("سجل المصروف نقدًا عند توفر رصيد، أو اختر «آجل / غير مدفوع» لتسجيل المصروف دون سحب من الصندوق.")
+        desc = QLabel("أدخل التصنيف والمبلغ، ويمكنك ترك رقم المصروف والبيان فارغين؛ سيقوم النظام بتوليدهما تلقائيًا. الدفع الآجل لا يحتاج رصيدًا في الصندوق.")
         desc.setWordWrap(True)
         desc.setObjectName("pageDescription")
         root.addWidget(desc)
         form = QFormLayout()
         form.setSpacing(12)
+        self.expense_no.setPlaceholderText("اختياري — يولد تلقائيًا")
+        self.description.setPlaceholderText("اختياري — يستخدم اسم التصنيف تلقائيًا")
         form.addRow("رقم المصروف", self.expense_no)
-        form.addRow("تصنيف المصروف", self.category)
+        form.addRow("تصنيف المصروف *", self.category)
         form.addRow("البيان", self.description)
-        form.addRow("المبلغ", self.amount)
+        form.addRow("المبلغ *", self.amount)
         form.addRow("وسيلة الدفع", self.payment_method)
         root.addLayout(form)
         buttons = QHBoxLayout()
@@ -54,7 +56,6 @@ class ExpensesPage(QWidget):
         save.clicked.connect(self.save_expense)
         buttons.addWidget(save)
         refresh = QPushButton("تحديث")
-        refresh.setObjectName("actionButton")
         refresh.clicked.connect(self.refresh)
         buttons.addWidget(refresh)
         back = QPushButton("العودة إلى الرئيسية")
@@ -68,16 +69,29 @@ class ExpensesPage(QWidget):
         session = get_session()
         try:
             self.category.clear()
-            self.payment_method.clear()
             categories = session.scalars(select(ExpenseCategory).where(ExpenseCategory.is_active.is_(True)).order_by(ExpenseCategory.name)).all()
+            if not categories:
+                for name in ("مشتريات", "رواتب وأجور", "كهرباء وماء", "نقل ومواصلات", "صيانة", "اتصالات", "إيجار", "أخرى"):
+                    category = ExpenseCategory(name=name, is_active=True)
+                    session.add(category)
+                session.commit()
+                categories = session.scalars(select(ExpenseCategory).where(ExpenseCategory.is_active.is_(True)).order_by(ExpenseCategory.name)).all()
             for category in categories:
                 self.category.addItem(category.name, category.id)
+
+            self.payment_method.clear()
             methods = session.scalars(select(PaymentMethod).where(PaymentMethod.is_active.is_(True)).order_by(PaymentMethod.code)).all()
+            if not any(method.code == "CREDIT" for method in methods):
+                credit = PaymentMethod(code="CREDIT", name="آجل / غير مدفوع", method_type="CREDIT", cashbox_id=None, is_active=True)
+                session.add(credit)
+                session.commit()
+                methods = session.scalars(select(PaymentMethod).where(PaymentMethod.is_active.is_(True)).order_by(PaymentMethod.code)).all()
             for method in methods:
                 self.payment_method.addItem(method.name, method.id)
-            credit_index = self.payment_method.findData(next((m.id for m in methods if m.code == "CREDIT"), None))
-            if credit_index >= 0:
+            credit_index = next((index for index, method in enumerate(methods) if method.code == "CREDIT"), 0)
+            if methods:
                 self.payment_method.setCurrentIndex(credit_index)
+
             self.table.setRowCount(0)
             rows = session.scalars(select(Expense).order_by(Expense.id.desc()).limit(100)).all()
             categories_map = {c.id: c.name for c in session.scalars(select(ExpenseCategory)).all()}
@@ -89,23 +103,27 @@ class ExpensesPage(QWidget):
                     self.table.setItem(row, col, QTableWidgetItem(str(value)))
             if not self.expense_no.text().strip():
                 self.expense_no.setText(f"E-{date.today().strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}")
+        except Exception as exc:
+            session.rollback()
+            QMessageBox.critical(self, "تعذر تحميل المصروفات", f"تعذر تجهيز بيانات المصروفات.\n\nالسبب: {exc}")
         finally:
             session.close()
 
     def save_expense(self):
-        no = self.expense_no.text().strip()
-        description = self.description.text().strip()
+        no = self.expense_no.text().strip() or f"E-{date.today().strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}"
         category_id = self.category.currentData()
-        method_id = self.payment_method.currentData()
         amount = Decimal(str(self.amount.value()))
-        if not no or not description or category_id is None:
-            QMessageBox.warning(self, "بيانات ناقصة", "أدخل رقم المصروف والتصنيف والبيان.")
+        method_id = self.payment_method.currentData()
+        description = self.description.text().strip() or self.category.currentText().strip()
+        if category_id is None:
+            QMessageBox.warning(self, "التصنيف", "لا يوجد تصنيف متاح. اضغط تحديث ثم حاول مرة أخرى.")
             return
         if amount <= 0:
-            QMessageBox.warning(self, "مبلغ غير صحيح", "أدخل مبلغًا أكبر من صفر.")
+            QMessageBox.warning(self, "المبلغ", "أدخل مبلغًا أكبر من صفر.")
+            self.amount.setFocus()
             return
         if method_id is None:
-            QMessageBox.warning(self, "وسيلة الدفع", "اختر وسيلة الدفع.")
+            QMessageBox.warning(self, "وسيلة الدفع", "لا توجد وسيلة دفع متاحة. اضغط تحديث ثم حاول مرة أخرى.")
             return
         session = get_session()
         try:
