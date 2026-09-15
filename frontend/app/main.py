@@ -11,17 +11,19 @@ from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.main_window import MainWindow
 from frontend.app.ui.permissions_page import PermissionsPage
 from frontend.app.ui.products_page import ProductsPage
+from frontend.app.ui.revenues_page import RevenuesPage
 from frontend.app.ui.settings_page import SettingsPage
 from frontend.app.ui.users_page import UsersPage
 
 
 def _add_admin_modules(window):
-    """Add administration and product-management modules to the existing top navigation."""
+    """Add administration, product and other-revenue modules to the existing top navigation."""
     root_layout = window.centralWidget().layout()
     nav = root_layout.itemAt(1).widget()
     nav_layout = nav.layout()
     modules = [
         ("الأصناف", ProductsPage),
+        ("الإيرادات", RevenuesPage),
         ("المستخدمون", UsersPage),
         ("الصلاحيات", PermissionsPage),
         ("الإعدادات", SettingsPage),
@@ -39,7 +41,7 @@ def _add_admin_modules(window):
         button.clicked.connect(lambda checked=False, name=label: window._show_page(name))
         nav_layout.addWidget(button)
         window._nav_buttons[label] = button
-        window._specs[label] = (label, "إدارة الأصناف والمستخدمين والصلاحيات وإعدادات النظام.", [])
+        window._specs[label] = (label, "إدارة الأصناف والإيرادات والمستخدمين والصلاحيات وإعدادات النظام.", [])
 
 
 def main():
@@ -55,11 +57,7 @@ def main():
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
-        QMessageBox.warning(
-            dialog,
-            "البرنامج غير مفعل",
-            f"{license_status.message}\n\nمعرّف التثبيت:\n{license_status.installation_id}",
-        )
+        QMessageBox.warning(dialog, "البرنامج غير مفعل", f"{license_status.message}\n\nمعرّف التثبيت:\n{license_status.installation_id}")
         return app.exec()
 
     window = MainWindow()
@@ -72,6 +70,11 @@ def main():
     maintenance.start()
 
     window.show()
+    # The camera remains running continuously so successive products can be scanned without reopening it.
+    window.barcode_scanner.show()
+    window._position_scanner()
+    window.barcode_scanner.raise_()
+    window.scanner_toggle.setText("📷 قارئ الباركود — الكاميرا تعمل")
     return app.exec()
 
 
