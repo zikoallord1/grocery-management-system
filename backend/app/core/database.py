@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -83,8 +83,10 @@ def _ensure_default_finance_setup():
 
 
 def initialize_database():
+    from .audit_models import AuditLog
     from . import models  # noqa: F401
     from backend.app.modules.finance import models as finance_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    AuditLog.__table__.create(bind=engine, checkfirst=True)
     _ensure_default_finance_setup()
