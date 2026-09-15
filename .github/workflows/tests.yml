@@ -32,11 +32,6 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest tests -q
 
-      - name: Build documentation
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: python tools/build_documentation.py
-
   windows-build:
     needs: test
     runs-on: windows-latest
@@ -76,20 +71,20 @@ jobs:
           Copy-Item "build_docs/تقرير البرنامج.pdf" client-package/
           Copy-Item "build_docs/معلومات الإصدار.txt" client-package/
           Copy-Item "build_docs/screens" client-package/صور-الشرح -Recurse
-          Set-Content -Path client-package/README.txt -Value @"
-نظام إدارة البقالات
+          @"
+          نظام إدارة البقالات
 
-محتويات الحزمة:
-- GroceryManagementSystem.exe : البرنامج الرئيسي
-- GroceryLicenseManager.exe : مدير إنشاء التراخيص
-- دليل استخدام البرنامج.pdf : دليل الاستخدام المصور
-- تقرير البرنامج.pdf : التقرير المصور
-- صور-الشرح : لقطات حقيقية من الواجهة الحالية
-- معلومات الإصدار.txt : معلومات الإصدار والدعم
+          محتويات الحزمة:
+          - GroceryManagementSystem.exe : البرنامج الرئيسي
+          - GroceryLicenseManager.exe : مدير إنشاء التراخيص
+          - دليل استخدام البرنامج.pdf : دليل الاستخدام المصور
+          - تقرير البرنامج.pdf : التقرير المصور
+          - صور-الشرح : لقطات حقيقية من الواجهة الحالية
+          - معلومات الإصدار.txt : معلومات الإصدار والدعم
 
-تنبيه:
-مفتاح الإصدار الخاص بالتراخيص يبقى لدى مسؤول التراخيص ولا يُسلّم للعميل.
-"@ -Encoding UTF8
+          تنبيه:
+          مفتاح الإصدار الخاص بالتراخيص يبقى لدى مسؤول التراخيص ولا يُسلّم للعميل.
+          "@ | Set-Content -Path client-package/README.txt -Encoding UTF8
 
       - name: Upload Windows application
         uses: actions/upload-artifact@v4
