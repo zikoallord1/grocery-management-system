@@ -2,16 +2,30 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+import tempfile
 import urllib.request
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "frontend" / "app" / "assets" / "fonts" / "NotoSansArabic-Regular.ttf"
-SOURCE_URL = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansarabic/NotoSansArabic%5Bwdth%2Cwght%5D.ttf"
+SOURCE_URL = "https://github.com/notofonts/arabic/releases/download/NotoSansArabic-v2.013/NotoSansArabic-v2.013.zip"
 SYSTEM_CANDIDATES = (
     Path("/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"),
     Path("C:/Windows/Fonts/NotoSansArabic-Regular.ttf"),
 )
+
+
+def _download_static_release() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        archive = Path(temp_dir) / "NotoSansArabic.zip"
+        urllib.request.urlretrieve(SOURCE_URL, archive)
+        with zipfile.ZipFile(archive) as zf:
+            matches = [name for name in zf.namelist() if name.endswith("NotoSansArabic-Regular.ttf")]
+            if not matches:
+                raise RuntimeError("Official Noto Sans Arabic release did not contain the regular TTF")
+            with zf.open(matches[0]) as source, TARGET.open("wb") as destination:
+                shutil.copyfileobj(source, destination)
 
 
 def main() -> int:
@@ -26,8 +40,8 @@ def main() -> int:
             print(f"Vendored Arabic font from system: {source}")
             break
     else:
-        print(f"Downloading official Google Fonts source: {SOURCE_URL}")
-        urllib.request.urlretrieve(SOURCE_URL, TARGET)
+        print(f"Downloading official Noto Fonts release: {SOURCE_URL}")
+        _download_static_release()
 
     if not TARGET.is_file() or TARGET.stat().st_size < 100_000:
         raise RuntimeError("Noto Sans Arabic font was not materialized correctly")
