@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtGui import QFont, QFontDatabase, QRawFont
+from PySide6.QtGui import QFont, QRawFont
 from PySide6.QtWidgets import QApplication, QLabel
 
 from frontend.app.ui.font_setup import setup_application_font
 
 
 def main() -> int:
+    Path("build_docs").mkdir(parents=True, exist_ok=True)
     app = QApplication.instance() or QApplication(sys.argv)
     family = setup_application_font(app)
     if not family:
@@ -32,8 +34,9 @@ def main() -> int:
     label.resize(640, 80)
     label.show()
     app.processEvents()
-    label.grab().save("build_docs/arabic-font-smoke.png")
-    print(f"Arabic font verified: family={family!r}, glyphs={glyphs}")
+    output = Path("build_docs/arabic-font-smoke.png")
+    label.grab().save(str(output))
+    print(f"Arabic font verified: family={family!r}, glyphs={glyphs}, smoke={output}")
     return 0
 
 
