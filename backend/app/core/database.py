@@ -17,11 +17,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DATABASE_PATH = DATA_DIR / "grocery.db"
 DATABASE_URL = f"sqlite:///{DATABASE_PATH.as_posix()}"
 
-engine = create_engine(
-    DATABASE_URL,
-    future=True,
-    connect_args={"check_same_thread": False},
-)
+engine = create_engine(DATABASE_URL, future=True, connect_args={"check_same_thread": False})
 
 
 @event.listens_for(engine, "connect")
@@ -37,12 +33,7 @@ class Base(DeclarativeBase):
     pass
 
 
-SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
-    autocommit=False,
-    expire_on_commit=False,
-)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
 def get_session():
@@ -53,74 +44,44 @@ def _ensure_default_finance_setup():
     from backend.app.modules.finance.models import Cashbox, ExpenseCategory, PaymentMethod
 
     session = SessionLocal()
-
     try:
         defaults = [
             ("CASH", "النقد", "CASH", None),
             ("WALLET", "المحفظة الإلكترونية", "WALLET", "محفظة إلكترونية"),
             ("BANK", "الحساب البنكي", "BANK", "حساب بنكي"),
         ]
-
         cashboxes = {}
         for code, name, account_type, provider_name in defaults:
-            cashbox = session.execute(
-                select(Cashbox).where(Cashbox.code == code)
-            ).scalar_one_or_none()
+            cashbox = session.execute(select(Cashbox).where(Cashbox.code == code)).scalar_one_or_none()
             if cashbox is None:
-                cashbox = Cashbox(
-                    code=code,
-                    name=name,
-                    account_type=account_type,
-                    currency="BASE",
-                    provider_name=provider_name,
-                )
-                session.add(cashbox)
-                session.flush()
+                cashbox = Cashbox(code=code, name=name, account_type=account_type, currency="BASE", provider_name=provider_name)
+                session.add(cashbox); session.flush()
             cashboxes[code] = cashbox
 
-        payment_defaults = [
-            ("CASH", "نقد", "CASH", "CASH"),
-            ("WALLET", "محفظة إلكترونية", "WALLET", "WALLET"),
-            ("BANK", "تحويل بنكي", "BANK", "BANK"),
-        ]
+        payment_defaults = [("CASH", "نقد", "CASH", "CASH"), ("WALLET", "محفظة إلكترونية", "WALLET", "WALLET"), ("BANK", "تحويل بنكي", "BANK", "BANK")]
         for code, name, method_type, cashbox_code in payment_defaults:
-            method = session.execute(
-                select(PaymentMethod).where(PaymentMethod.code == code)
-            ).scalar_one_or_none()
+            method = session.execute(select(PaymentMethod).where(PaymentMethod.code == code)).scalar_one_or_none()
             if method is None:
                 session.add(PaymentMethod(code=code, name=name, method_type=method_type, cashbox_id=cashboxes[cashbox_code].id))
             elif method.cashbox_id is None:
-                method.cashbox_id = cashboxes[cashbox_code].id
-                method.is_active = True
+                method.cashbox_id = cashboxes[cashbox_code].id; method.is_active = True
 
-        credit = session.execute(
-            select(PaymentMethod).where(PaymentMethod.code == "CREDIT")
-        ).scalar_one_or_none()
+        credit = session.execute(select(PaymentMethod).where(PaymentMethod.code == "CREDIT")).scalar_one_or_none()
         if credit is None:
             session.add(PaymentMethod(code="CREDIT", name="آجل / غير مدفوع", method_type="CREDIT", cashbox_id=None))
         else:
-            credit.name = "آجل / غير مدفوع"
-            credit.method_type = "CREDIT"
-            credit.cashbox_id = None
-            credit.is_active = True
+            credit.name = "آجل / غير مدفوع"; credit.method_type = "CREDIT"; credit.cashbox_id = None; credit.is_active = True
 
         for name in ["مشتريات", "رواتب وأجور", "كهرباء وماء", "نقل ومواصلات", "صيانة", "اتصالات", "إيجار", "أخرى"]:
-            category = session.execute(
-                select(ExpenseCategory).where(ExpenseCategory.name == name)
-            ).scalar_one_or_none()
+            category = session.execute(select(ExpenseCategory).where(ExpenseCategory.name == name)).scalar_one_or_none()
             if category is None:
                 session.add(ExpenseCategory(name=name))
 
         from backend.app.core.models import StockLocation
-
-        location = session.execute(
-            select(StockLocation).where(StockLocation.code == "MAIN")
-        ).scalar_one_or_none()
+        location = session.execute(select(StockLocation).where(StockLocation.code == "MAIN")).scalar_one_or_none()
         if location is None:
             session.add(StockLocation(code="MAIN", name="المخزن الرئيسي", location_type="STORE", is_active=True))
-
         session.commit()
-
     finally:
         session.close()
 
@@ -130,6 +91,7 @@ def initialize_database():
     from . import models  # noqa: F401
     from . import product_units  # noqa: F401
     from backend.app.modules.finance import models as finance_models  # noqa: F401
+    from backend.app.modules.finance import revenue as revenue_model  # noqa: F401
     from . import daily_operations  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
