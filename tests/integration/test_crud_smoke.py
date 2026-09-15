@@ -8,8 +8,9 @@ from sqlalchemy import select
 
 from backend.app.core.database import get_session, initialize_database
 from backend.app.core.models import Customer, Product, StockLocation, Supplier
-from backend.app.modules.finance.models import Expense
-from backend.app.ui.cashboxes_page import CashboxesPage
+from backend.app.modules.finance.models import Expense, PaymentMethod
+from backend.app.modules.finance.revenue import Revenue
+from frontend.app.ui.cashboxes_page import CashboxesPage
 from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.expenses_page import ExpensesPage
 from frontend.app.ui.inventory_page import InventoryPage
@@ -19,6 +20,7 @@ from frontend.app.ui.reports_page import ReportsPage
 from frontend.app.ui.returns_page import ReturnsPage
 from frontend.app.ui.sales_page import SalesPage
 from frontend.app.ui.suppliers_page import SuppliersPage
+from frontend.app.ui.revenues_page import RevenuesPage
 
 
 def _silent_message_boxes(monkeypatch):
@@ -33,7 +35,6 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     _silent_message_boxes(monkeypatch)
     token = uuid4().hex[:10].upper()
 
-    # Product entry
     products = ProductsPage()
     products.name.setText(f"صنف اختبار {token}")
     products.sku.setText(f"TEST-{token}")
@@ -51,7 +52,6 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     finally:
         session.close()
 
-    # Customer entry
     customers = CustomersPage()
     customers.code.setText(f"CUS-{token}")
     customers.name.setText(f"عميل اختبار {token}")
@@ -63,7 +63,6 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     finally:
         session.close()
 
-    # Supplier entry
     suppliers = SuppliersPage()
     suppliers.code.setText(f"SUP-{token}")
     suppliers.name.setText(f"مورد اختبار {token}")
@@ -75,13 +74,9 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     finally:
         session.close()
 
-    # Expense entry as credit/unpaid so it is independent of cash balance.
     expenses = ExpensesPage()
     expenses.refresh()
-    credit_index = next(
-        (i for i in range(expenses.payment_method.count()) if "آجل" in expenses.payment_method.itemText(i)),
-        -1,
-    )
+    credit_index = next((i for i in range(expenses.payment_method.count()) if "آجل" in expenses.payment_method.itemText(i)), -1)
     assert credit_index >= 0
     expenses.payment_method.setCurrentIndex(credit_index)
     expenses.description.setText(f"مصروف اختبار {token}")
@@ -93,7 +88,18 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     finally:
         session.close()
 
-    # Purchase entry as credit: creates stock without requiring opening cash.
+    revenues = RevenuesPage()
+    revenues.refresh()
+    assert revenues.payment_method.count() >= 1
+    revenues.description.setText(f"إيراد اختبار {token}")
+    revenues.amount.setValue(40)
+    revenues.save_revenue()
+    session = get_session()
+    try:
+        assert session.scalar(select(Revenue).where(Revenue.description == f"إيراد اختبار {token}")) is not None
+    finally:
+        session.close()
+
     purchases = PurchasesPage()
     purchases.refresh()
     pidx = purchases.product.findData(product_id)
@@ -118,7 +124,6 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     finally:
         session.close()
 
-    # Sales entry (the current revenue-generating tab) consumes the purchased stock.
     sales = SalesPage()
     sales.refresh_data()
     sidx = sales.product.findData(product_id)
@@ -129,7 +134,6 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     assert len(sales.lines) == 1
     sales.create_sale()
 
-    # Remaining tabs load successfully after real transactions.
     inventory = InventoryPage()
     inventory.refresh()
     assert inventory.balance_table.rowCount() >= 1
@@ -144,6 +148,6 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     reports = ReportsPage()
     reports.refresh()
 
-    for widget in (products, customers, suppliers, expenses, purchases, sales, inventory, cashboxes, returns, reports):
+    for widget in (products, customers, suppliers, expenses, revenues, purchases, sales, inventory, cashboxes, returns, reports):
         widget.close()
     app.processEvents()
