@@ -3,6 +3,7 @@ SQLAlchemy>=2.0,<3
 alembic>=1.14,<2
 pytest>=8,<9
 pytest-cov>=6,<7
+pytest-qt>=4.4,<5
 pyinstaller>=6,<7
 numpy>=2,<3
 opencv-python-headless>=4.10,<5
