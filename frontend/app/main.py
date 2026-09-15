@@ -1,6 +1,6 @@
 import sys
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QDialog
 from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
 
 from backend.app.core.database import initialize_database
@@ -47,13 +47,13 @@ def _add_admin_modules(window):
 
 def _login(app):
     dialog = LoginDialog()
-    if dialog.exec() != dialog.Accepted:
+    if dialog.exec() != QDialog.DialogCode.Accepted:
         return None
     return getattr(dialog, "authenticated_user", None) or dialog.user
 
 
 def _show_login(dialog):
-    return dialog.exec() == dialog.Accepted
+    return dialog.exec() == QDialog.DialogCode.Accepted
 
 
 def main():
@@ -74,7 +74,7 @@ def main():
 
     while True:
         login = LoginDialog()
-        if login.exec() != login.Accepted:
+        if login.exec() != QDialog.DialogCode.Accepted:
             return 0
         user = login.authenticated_user
         window = AuthenticatedMainWindow(user)
