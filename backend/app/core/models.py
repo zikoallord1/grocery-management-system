@@ -226,3 +226,141 @@ class StockMovement(Base):
             name="ck_stock_movement_direction",
         ),
     )
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from backend.app.core.database import Base
+
+
+class Sale(Base):
+    __tablename__ = "sales"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_no: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    business_date: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        index=True,
+    )
+    subtotal: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    discount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+        default=0,
+    )
+    tax: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+        default=0,
+    )
+    total: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    paid_amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    credit_amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="DRAFT",
+    )
+    payment_status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        unique=True,
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+    )
+
+
+class SaleItem(Base):
+    __tablename__ = "sale_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sale_id: Mapped[int] = mapped_column(
+        ForeignKey("sales.id"),
+        nullable=False,
+        index=True,
+    )
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        nullable=False,
+        index=True,
+    )
+    quantity: Mapped[Decimal] = mapped_column(
+        Numeric(14, 3),
+        nullable=False,
+    )
+    unit_price: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    discount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+        default=0,
+    )
+    total: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    cost_price_snapshot: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+
+
+class SalePayment(Base):
+    __tablename__ = "sale_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sale_id: Mapped[int] = mapped_column(
+        ForeignKey("sales.id"),
+        nullable=False,
+        index=True,
+    )
+    payment_method: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+    )
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+    )
+    currency: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        default="BASE",
+    )
+    reference_no: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
