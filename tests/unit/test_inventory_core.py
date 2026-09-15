@@ -25,18 +25,39 @@ TABLE_DELETE_ORDER = [
 
 
 @pytest.fixture(autouse=True)
-def setup_database():
+def clean_database():
     initialize_database()
 
     with engine.begin() as connection:
-        existing_tables = set(inspect(engine).get_table_names())
+        tables = set(inspect(engine).get_table_names())
 
-        for table in TABLE_DELETE_ORDER:
-            if table in existing_tables:
-                connection.exec_driver_sql(
-                    f'DELETE FROM "{table}"'
-                )
-
+        for table in [
+            "cashbox_movements",
+            "sale_payments",
+            "sale_items",
+            "sales",
+            "purchase_payments",
+            "purchase_items",
+            "purchases",
+            "customer_payments",
+            "customer_account_movements",
+            "supplier_payments",
+            "supplier_account_movements",
+            "product_barcodes",
+            "stock_movements",
+            "expense_payments",
+            "expenses",
+            "expense_categories",
+            "payment_methods",
+            "customers",
+            "suppliers",
+            "products",
+            "stock_locations",
+            "units",
+            "categories",
+        ]:
+            if table in tables:
+                connection.exec_driver_sql(f'DELETE FROM "{table}"')
 
 def create_product(session):
     category = Category(name="مواد غذائية")
@@ -242,3 +263,4 @@ def test_idempotency_key_is_unique():
         session.rollback()
     finally:
         session.close()
+

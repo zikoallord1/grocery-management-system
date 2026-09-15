@@ -1,9 +1,10 @@
-﻿import uuid
+import uuid
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import inspect
 
+from backend.app.core.models import Customer
 from backend.app.core.database import engine, get_session, initialize_database
 from backend.app.core.models import Category, Product, StockLocation, Unit
 from backend.app.modules.inventory.service import InventoryService
@@ -17,6 +18,21 @@ from backend.app.modules.sales.service import (
 @pytest.fixture(autouse=True)
 def clean_database():
     initialize_database()
+    from backend.app.modules.finance.models import Cashbox, PaymentMethod
+    from backend.app.core.database import SessionLocal
+    _setup_session = SessionLocal()
+    try:
+        wallet_box = _setup_session.query(Cashbox).filter_by(code='WALLET').first()
+        if wallet_box is None:
+            wallet_box = Cashbox(code='WALLET', name='??????? ?????????', account_type='WALLET', currency='BASE')
+            _setup_session.add(wallet_box)
+            _setup_session.flush()
+        wallet_method = _setup_session.query(PaymentMethod).filter_by(code='WALLET').first()
+        if wallet_method is None:
+            _setup_session.add(PaymentMethod(code='WALLET', name='?????', method_type='WALLET', cashbox_id=wallet_box.id, is_active=True))
+        _setup_session.commit()
+    finally:
+        _setup_session.close()
 
     with engine.begin() as connection:
         tables = set(inspect(engine).get_table_names())
@@ -124,10 +140,18 @@ def test_mixed_payment_is_supported():
     try:
         product, location = setup_product_and_stock(session)
         service = SaleService(session)
+        customer = Customer(
+            code="CUST-TEST-MIXED-001",
+            name="test-customer-mixed-payment",
+            phone="0000000000",
+        )
+        session.add(customer)
+        session.flush()
 
         sale = service.create_sale(
             document_no="S-0002",
             business_date="2026-09-14",
+            customer_id=customer.id,
             items=[
                 {
                     "product_id": product.id,

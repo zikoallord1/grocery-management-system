@@ -1,6 +1,6 @@
 ﻿from pathlib import Path
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -15,6 +15,7 @@ engine = create_engine(
     future=True,
     connect_args={"check_same_thread": False},
 )
+
 
 @event.listens_for(engine, "connect")
 def set_sqlite_pragmas(dbapi_connection, connection_record):
@@ -41,6 +42,49 @@ def get_session():
     return SessionLocal()
 
 
+def _ensure_default_finance_setup():
+    from backend.app.modules.finance.models import Cashbox, PaymentMethod
+
+    session = SessionLocal()
+
+    try:
+        cash = session.execute(
+            select(Cashbox).where(Cashbox.code == "CASH")
+        ).scalar_one_or_none()
+
+        if cash is None:
+            cash = Cashbox(
+                code="CASH",
+                name="النقد",
+                account_type="CASH",
+                currency="BASE",
+            )
+            session.add(cash)
+            session.flush()
+
+        method = session.execute(
+            select(PaymentMethod).where(PaymentMethod.code == "CASH")
+        ).scalar_one_or_none()
+
+        if method is None:
+            session.add(
+                PaymentMethod(
+                    code="CASH",
+                    name="نقد",
+                    method_type="CASH",
+                    cashbox_id=cash.id,
+                )
+            )
+
+        session.commit()
+
+    finally:
+        session.close()
+
+
 def initialize_database():
-    from . import models
+    from . import models  # noqa: F401
+    from backend.app.modules.finance import models as finance_models  # noqa: F401
+
     Base.metadata.create_all(bind=engine)
+    _ensure_default_finance_setup()

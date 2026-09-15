@@ -45,17 +45,35 @@ def clean_database():
     initialize_database()
 
     with engine.begin() as connection:
+        tables = set(inspect(engine).get_table_names())
+
         for table in [
-            "stock_movements",
+            "cashbox_movements",
+            "sale_payments",
+            "sale_items",
+            "sales",
+            "purchase_payments",
+            "purchase_items",
+            "purchases",
+            "customer_payments",
+            "customer_account_movements",
+            "supplier_payments",
+            "supplier_account_movements",
             "product_barcodes",
+            "stock_movements",
+            "expense_payments",
+            "expenses",
+            "expense_categories",
+            "payment_methods",
+            "customers",
+            "suppliers",
             "products",
             "stock_locations",
             "units",
             "categories",
         ]:
-            if table in inspect(engine).get_table_names():
+            if table in tables:
                 connection.exec_driver_sql(f'DELETE FROM "{table}"')
-
 
 def test_add_stock_and_read_balance():
     session = get_session()
@@ -188,3 +206,4 @@ def test_duplicate_idempotency_is_rejected():
         session.commit()
     finally:
         session.close()
+

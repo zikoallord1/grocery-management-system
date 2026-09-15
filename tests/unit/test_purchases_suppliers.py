@@ -1,4 +1,5 @@
-﻿from decimal import Decimal
+from datetime import date
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -22,6 +23,27 @@ from backend.app.modules.suppliers.service import (
 @pytest.fixture(autouse=True)
 def clean_database():
     initialize_database()
+    from backend.app.modules.finance.models import Cashbox, CashboxMovement
+    from backend.app.core.database import SessionLocal
+    _setup_session = SessionLocal()
+    try:
+        cash_box = _setup_session.query(Cashbox).filter_by(code='CASH').first()
+        if cash_box is None:
+            raise RuntimeError('Default CASH cashbox was not created')
+        existing_opening = _setup_session.query(CashboxMovement).filter_by(idempotency_key='TEST-OPENING-CASH').first()
+        if existing_opening is None:
+            _setup_session.add(CashboxMovement(
+                cashbox_id=cash_box.id,
+                movement_type='OPENING_BALANCE',
+                amount=100000,
+                direction='IN',
+                currency='BASE',
+                business_date=date.today(),
+                idempotency_key='TEST-OPENING-CASH'
+            ))
+            _setup_session.commit()
+    finally:
+        _setup_session.close()
 
     with engine.begin() as connection:
         tables = set(inspect(engine).get_table_names())
