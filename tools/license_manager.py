@@ -6,21 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QApplication,
-    QComboBox,
-    QDateEdit,
-    QFileDialog,
-    QFormLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QApplication, QComboBox, QDateEdit, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
 from backend.app.core.licensing import create_signed_license, generate_authority_keys
 
@@ -41,7 +27,7 @@ class LicenseManager(QWidget):
         title = QLabel("مدير تراخيص نظام إدارة البقالات")
         title.setStyleSheet("font-size:22px;font-weight:700;")
         root.addWidget(title)
-        note = QLabel("هذه الأداة مخصصة لمالك البرنامج لإصدار تراخيص موقعة وربطها بتثبيت العميل.")
+        note = QLabel("هذه الأداة مخصصة لمالك البرنامج لإصدار تراخيص موقعة وربطها بتثبيت العميل. مفتاح الإصدار الخاص يبقى محليًا ولا يُرسل للعميل.")
         note.setWordWrap(True)
         root.addWidget(note)
 
@@ -65,10 +51,13 @@ class LicenseManager(QWidget):
         buttons = QHBoxLayout()
         generate = QPushButton("إنشاء الترخيص")
         generate.clicked.connect(self.create_license)
-        copy_public = QPushButton("عرض مفتاح التحقق العام")
-        copy_public.clicked.connect(self.show_public_key)
+        show_public = QPushButton("عرض مفتاح التحقق العام")
+        show_public.clicked.connect(self.show_public_key)
+        export_public = QPushButton("تصدير مفتاح التحقق للنسخة")
+        export_public.clicked.connect(self.export_public_key)
         buttons.addWidget(generate)
-        buttons.addWidget(copy_public)
+        buttons.addWidget(show_public)
+        buttons.addWidget(export_public)
         root.addLayout(buttons)
 
         self.output = QTextEdit()
@@ -87,30 +76,22 @@ class LicenseManager(QWidget):
         if expires < date.today():
             QMessageBox.warning(self, "تاريخ غير صحيح", "تاريخ انتهاء الترخيص يجب أن يكون اليوم أو بعده.")
             return
-        envelope = create_signed_license(
-            private_key_path=self.private_key_path,
-            customer_name=customer,
-            store_name=store,
-            installation_id_value=iid,
-            expires_at=expires,
-            edition=self.edition.currentText(),
-        )
+        envelope = create_signed_license(private_key_path=self.private_key_path, customer_name=customer, store_name=store, installation_id_value=iid, expires_at=expires, edition=self.edition.currentText())
         target, _ = QFileDialog.getSaveFileName(self, "حفظ ملف الترخيص", "license.json", "License (*.json)")
         if not target:
             return
         Path(target).write_text(json.dumps(envelope, ensure_ascii=False, indent=2), encoding="utf-8")
-        self.output.setPlainText(
-            "تم إنشاء الترخيص بنجاح.\n\n"
-            f"رقم الترخيص: {envelope['payload']['license_id']}\n"
-            f"العميل: {customer}\n"
-            f"المنشأة: {store}\n"
-            f"الانتهاء: {expires.isoformat()}\n"
-            f"الملف: {target}\n\n"
-            "انسخ ملف الترخيص إلى مجلد بيانات البرنامج لدى العميل، مع مفتاح التحقق العام المطابق."
-        )
+        self.output.setPlainText("تم إنشاء الترخيص بنجاح.\n\n" f"رقم الترخيص: {envelope['payload']['license_id']}\n" f"العميل: {customer}\n" f"المنشأة: {store}\n" f"الانتهاء: {expires.isoformat()}\n" f"الملف: {target}\n\n" "مهم: يجب أن تحتوي نسخة العميل على مفتاح التحقق العام المطابق، بينما يبقى مفتاح الإصدار الخاص على جهاز مالك البرنامج فقط.")
 
     def show_public_key(self):
         self.output.setPlainText(self.public_key_path.read_text(encoding="utf-8"))
+
+    def export_public_key(self):
+        target, _ = QFileDialog.getSaveFileName(self, "تصدير مفتاح التحقق العام", "public_key.pem", "PEM (*.pem)")
+        if not target:
+            return
+        Path(target).write_bytes(self.public_key_path.read_bytes())
+        self.output.setPlainText(f"تم تصدير مفتاح التحقق العام إلى:\n{target}\n\nهذا المفتاح آمن للتوزيع مع نسخة البرنامج، ولا يمكنه إنشاء تراخيص.")
 
 
 def main():
