@@ -40,11 +40,11 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\setup_kiosk.ps1"" -AppPath ""{app}\{#MyAppExeName}"" -KioskUser "GroceryKiosk""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; Tasks: kiosk
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\setup_kiosk.ps1"" -AppPath ""{app}\{#MyAppExeName}"" -KioskUser ""GroceryKiosk"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; Tasks: kiosk
 Filename: "{app}\{#MyAppExeName}"; Description: "تشغيل نظام إدارة البقالات"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\remove_kiosk.ps1"" -KioskUser "GroceryKiosk""; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\remove_kiosk.ps1"" -KioskUser ""GroceryKiosk"""; Flags: runhidden waituntilterminated
 
 [Code]
 function InitializeSetup(): Boolean;
