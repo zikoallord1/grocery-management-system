@@ -64,6 +64,7 @@ def main():
 
     window = MainWindow()
     _add_admin_modules(window)
+    window._notification_timer.setInterval(30000)
     window.refresh_dashboard()
 
     maintenance = DailyMaintenanceController(window)
