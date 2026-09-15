@@ -7,9 +7,9 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from sqlalchemy import select
 
 from backend.app.core.database import get_session, initialize_database
-from backend.app.core.models import Product, StockLocation
+from backend.app.core.models import Customer, Product, StockLocation, Supplier
 from backend.app.modules.finance.models import Expense
-from frontend.app.ui.cashboxes_page import CashboxesPage
+from backend.app.ui.cashboxes_page import CashboxesPage
 from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.expenses_page import ExpensesPage
 from frontend.app.ui.inventory_page import InventoryPage
@@ -33,7 +33,7 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     _silent_message_boxes(monkeypatch)
     token = uuid4().hex[:10].upper()
 
-    # 1) Product entry
+    # Product entry
     products = ProductsPage()
     products.name.setText(f"صنف اختبار {token}")
     products.sku.setText(f"TEST-{token}")
@@ -51,21 +51,31 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     finally:
         session.close()
 
-    # 2) Customer entry
+    # Customer entry
     customers = CustomersPage()
     customers.code.setText(f"CUS-{token}")
     customers.name.setText(f"عميل اختبار {token}")
     customers.phone.setText("777000000")
     customers.save_customer()
+    session = get_session()
+    try:
+        assert session.scalar(select(Customer).where(Customer.code == f"CUS-{token}")) is not None
+    finally:
+        session.close()
 
-    # 3) Supplier entry
+    # Supplier entry
     suppliers = SuppliersPage()
     suppliers.code.setText(f"SUP-{token}")
     suppliers.name.setText(f"مورد اختبار {token}")
     suppliers.phone.setText("777111111")
     suppliers.save_supplier()
+    session = get_session()
+    try:
+        assert session.scalar(select(Supplier).where(Supplier.code == f"SUP-{token}")) is not None
+    finally:
+        session.close()
 
-    # 4) Expense entry as credit/unpaid so it is independent of cash balance.
+    # Expense entry as credit/unpaid so it is independent of cash balance.
     expenses = ExpensesPage()
     expenses.refresh()
     credit_index = next(
@@ -77,14 +87,13 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     expenses.description.setText(f"مصروف اختبار {token}")
     expenses.amount.setValue(25)
     expenses.save_expense()
-
     session = get_session()
     try:
         assert session.scalar(select(Expense).where(Expense.description == f"مصروف اختبار {token}")) is not None
     finally:
         session.close()
 
-    # 5) Purchase entry as credit: creates stock without requiring opening cash.
+    # Purchase entry as credit: creates stock without requiring opening cash.
     purchases = PurchasesPage()
     purchases.refresh()
     pidx = purchases.product.findData(product_id)
@@ -100,7 +109,16 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     purchases.payment.setValue(0)
     purchases.save_purchase()
 
-    # 6) Sales entry consumes the stock created by the purchase.
+    session = get_session()
+    try:
+        location = session.scalar(select(StockLocation).where(StockLocation.is_active.is_(True)).order_by(StockLocation.id))
+        assert location is not None
+        from backend.app.modules.inventory.service import InventoryService
+        assert InventoryService(session).get_balance(product_id, location.id) >= 20
+    finally:
+        session.close()
+
+    # Sales entry (the current revenue-generating tab) consumes the purchased stock.
     sales = SalesPage()
     sales.refresh_data()
     sidx = sales.product.findData(product_id)
@@ -111,7 +129,7 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     assert len(sales.lines) == 1
     sales.create_sale()
 
-    # 7) Inventory, cash/accounts, returns and reports must remain usable after real entries.
+    # Remaining tabs load successfully after real transactions.
     inventory = InventoryPage()
     inventory.refresh()
     assert inventory.balance_table.rowCount() >= 1
@@ -125,13 +143,6 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
 
     reports = ReportsPage()
     reports.refresh()
-
-    session = get_session()
-    try:
-        stock_location = session.scalar(select(StockLocation).where(StockLocation.is_active.is_(True)).order_by(StockLocation.id))
-        assert stock_location is not None
-    finally:
-        session.close()
 
     for widget in (products, customers, suppliers, expenses, purchases, sales, inventory, cashboxes, returns, reports):
         widget.close()
