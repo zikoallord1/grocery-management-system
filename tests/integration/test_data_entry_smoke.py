@@ -1,6 +1,5 @@
 import json
 import os
-from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -9,9 +8,10 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from backend.app.core.database import Base
+from backend.app.core.audit_models import AuditLog
 from backend.app.core.models import Product, Unit
 from backend.app.modules.finance.models import Expense, ExpenseCategory, PaymentMethod
-from frontend.app.ui import expenses_page, permissions_page, products_page, users_page
+from frontend.app.ui import expenses_page, permissions_page, users_page
 from frontend.app.ui.expenses_page import ExpensesPage
 from frontend.app.ui.permissions_page import PermissionsPage
 from frontend.app.ui.products_page import ProductsPage
@@ -21,6 +21,7 @@ from frontend.app.ui.users_page import UsersPage
 def _temp_session(tmp_path, monkeypatch):
     engine = create_engine(f"sqlite:///{(tmp_path / 'smoke.db').as_posix()}", future=True)
     Base.metadata.create_all(engine)
+    AuditLog.__table__.create(bind=engine, checkfirst=True)
     Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
     monkeypatch.setattr("frontend.app.ui.products_page.get_session", Session)
     monkeypatch.setattr("frontend.app.ui.expenses_page.get_session", Session)
@@ -31,8 +32,7 @@ def test_product_and_expense_entry_accept_data(tmp_path, monkeypatch):
     Session = _temp_session(tmp_path, monkeypatch)
     session = Session()
     session.add(Unit(name="قطعة", symbol="قطعة", is_active=True))
-    category = ExpenseCategory(name="أخرى", is_active=True)
-    session.add(category)
+    session.add(ExpenseCategory(name="أخرى", is_active=True))
     session.add(PaymentMethod(code="CREDIT", name="آجل / غير مدفوع", method_type="CREDIT", cashbox_id=None, is_active=True))
     session.commit()
     session.close()
