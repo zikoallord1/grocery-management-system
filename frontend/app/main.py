@@ -10,26 +10,6 @@ from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.main_window import MainWindow
 
 
-def _check_license(app):
-    status = verify_license()
-    if status.usable:
-        return True
-    dialog = LicenseDialog()
-    dialog.setWindowModality(Qt.ApplicationModal)
-    dialog.show()
-    app.processEvents()
-    QMessageBox.warning(
-        dialog,
-        "البرنامج غير مفعل",
-        f"{status.message}\n\nمعرّف التثبيت:\n{status.installation_id}",
-    )
-    dialog.raise_()
-    dialog.activateWindow()
-    result = app.exec()
-    # The dialog is a standalone activation window; closing it ends this startup attempt.
-    return False
-
-
 def main():
     initialize_database()
     app = QApplication(sys.argv)
