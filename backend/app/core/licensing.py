@@ -7,7 +7,7 @@ import os
 import platform
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -67,11 +67,6 @@ def installation_id() -> str:
     return value
 
 
-def machine_fingerprint() -> str:
-    raw = f"{platform.system()}|{platform.release()}|{platform.machine()}|{platform.node()}".encode()
-    return hashlib.sha256(raw).hexdigest()
-
-
 def ensure_trial_start() -> date:
     LICENSE_DIR.mkdir(parents=True, exist_ok=True)
     path = LICENSE_DIR / "trial_start"
@@ -87,7 +82,10 @@ def load_public_key(path: Path = PUBLIC_KEY_FILE) -> Ed25519PublicKey | None:
     data = env_key.encode("utf-8") if env_key else (path.read_bytes() if path.exists() else None)
     if not data:
         return None
-    return serialization.load_pem_public_key(data)
+    key = serialization.load_pem_public_key(data)
+    if not isinstance(key, Ed25519PublicKey):
+        raise LicenseError("مفتاح التحقق ليس من نوع Ed25519 المدعوم.")
+    return key
 
 
 def verify_license(path: Path = LICENSE_FILE, public_key_path: Path = PUBLIC_KEY_FILE) -> LicenseStatus:
@@ -138,24 +136,32 @@ def license_payload(*, license_id: str, customer_name: str, store_name: str, ins
 
 
 def sign_license(payload: dict, private_key: Ed25519PrivateKey) -> dict:
-    signature = private_key.sign(_canonical_json(payload))
-    return {"payload": payload, "signature": _b64(signature)}
+    return {"payload": payload, "signature": _b64(private_key.sign(_canonical_json(payload)))}
+
+
+def load_private_key(path: Path) -> Ed25519PrivateKey:
+    key = serialization.load_pem_private_key(path.read_bytes(), password=None)
+    if not isinstance(key, Ed25519PrivateKey):
+        raise LicenseError("مفتاح الإصدار ليس من نوع Ed25519 المدعوم.")
+    return key
 
 
 def generate_authority_keys(directory: Path) -> tuple[Path, Path]:
     directory.mkdir(parents=True, exist_ok=True)
     private_path = directory / "license_private_key.pem"
     public_path = directory / "license_public_key.pem"
-    if not private_path.exists():
-        private = Ed25519PrivateKey.generate()
-        private_path.write_bytes(private.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
-        os.chmod(private_path, 0o600)
+    if private_path.exists():
+        private = load_private_key(private_path)
         public_path.write_bytes(private.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+        return private_path, public_path
+    private = Ed25519PrivateKey.generate()
+    private_path.write_bytes(private.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    try:
+        os.chmod(private_path, 0o600)
+    except OSError:
+        pass
+    public_path.write_bytes(private.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
     return private_path, public_path
-
-
-def load_private_key(path: Path) -> Ed25519PrivateKey:
-    return serialization.load_pem_private_key(path.read_bytes(), password=None)
 
 
 def create_signed_license(*, private_key_path: Path, customer_name: str, store_name: str, installation_id_value: str, expires_at: date, edition: str = "Standard", license_id: str | None = None) -> dict:
