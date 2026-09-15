@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from sqlalchemy import select
 
 from backend.app.core.database import get_session, initialize_database
-from backend.app.core.models import Customer, Product, StockLocation, Supplier
+from backend.app.core.models import Customer, Product, StockLocation, Supplier, Unit
 from backend.app.modules.finance.models import Expense, PaymentMethod
 from backend.app.modules.finance.revenue import Revenue
 from frontend.app.ui.cashboxes_page import CashboxesPage
@@ -40,8 +40,9 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     products.sku.setText(f"TEST-{token}")
     products.barcode.setText(f"990{token}")
     products.purchase.setValue(10)
-    products.sale.setValue(15)
-    products.minimum.setValue(2)
+    products.sale_price.setValue(15)
+    products.minimum_stock.setValue(2)
+    assert products.unit.currentData() is not None
     products.save_product()
 
     session = get_session()
