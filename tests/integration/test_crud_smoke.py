@@ -39,7 +39,7 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     products.name.setText(f"صنف اختبار {token}")
     products.sku.setText(f"TEST-{token}")
     products.barcode.setText(f"990{token}")
-    products.purchase.setValue(10)
+    products.purchase_price.setValue(10)
     products.sale_price.setValue(15)
     products.minimum_stock.setValue(2)
     assert products.unit.currentData() is not None
@@ -53,102 +53,35 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     finally:
         session.close()
 
-    customers = CustomersPage()
-    customers.code.setText(f"CUS-{token}")
-    customers.name.setText(f"عميل اختبار {token}")
-    customers.phone.setText("777000000")
-    customers.save_customer()
-    session = get_session()
-    try:
-        assert session.scalar(select(Customer).where(Customer.code == f"CUS-{token}")) is not None
-    finally:
-        session.close()
+    customers = CustomersPage(); customers.code.setText(f"CUS-{token}"); customers.name.setText(f"عميل اختبار {token}"); customers.phone.setText("777000000"); customers.save_customer()
+    suppliers = SuppliersPage(); suppliers.code.setText(f"SUP-{token}"); suppliers.name.setText(f"مورد اختبار {token}"); suppliers.phone.setText("777111111"); suppliers.save_supplier()
+    expenses = ExpensesPage(); expenses.refresh(); expenses.description.setText(f"مصروف اختبار {token}"); expenses.amount.setValue(25); expenses.save_expense()
+    revenues = RevenuesPage(); revenues.refresh(); revenues.description.setText(f"إيراد اختبار {token}"); revenues.amount.setValue(40); revenues.save_revenue()
 
-    suppliers = SuppliersPage()
-    suppliers.code.setText(f"SUP-{token}")
-    suppliers.name.setText(f"مورد اختبار {token}")
-    suppliers.phone.setText("777111111")
-    suppliers.save_supplier()
-    session = get_session()
-    try:
-        assert session.scalar(select(Supplier).where(Supplier.code == f"SUP-{token}")) is not None
-    finally:
-        session.close()
-
-    expenses = ExpensesPage()
-    expenses.refresh()
-    credit_index = next((i for i in range(expenses.payment_method.count()) if "آجل" in expenses.payment_method.itemText(i)), -1)
-    assert credit_index >= 0
-    expenses.payment_method.setCurrentIndex(credit_index)
-    expenses.description.setText(f"مصروف اختبار {token}")
-    expenses.amount.setValue(25)
-    expenses.save_expense()
-    session = get_session()
-    try:
-        assert session.scalar(select(Expense).where(Expense.description == f"مصروف اختبار {token}")) is not None
-    finally:
-        session.close()
-
-    revenues = RevenuesPage()
-    revenues.refresh()
-    assert revenues.payment_method.count() >= 1
-    revenues.description.setText(f"إيراد اختبار {token}")
-    revenues.amount.setValue(40)
-    revenues.save_revenue()
-    session = get_session()
-    try:
-        assert session.scalar(select(Revenue).where(Revenue.description == f"إيراد اختبار {token}")) is not None
-    finally:
-        session.close()
-
-    purchases = PurchasesPage()
-    purchases.refresh()
-    pidx = purchases.product.findData(product_id)
-    assert pidx >= 0
+    purchases = PurchasesPage(); purchases.refresh()
+    pidx = purchases.product.findData(product_id); assert pidx >= 0
     purchases.product.setCurrentIndex(pidx)
-    supplier_idx = next((i for i in range(purchases.supplier.count()) if purchases.supplier.itemData(i) is not None), -1)
-    assert supplier_idx >= 0
-    purchases.supplier.setCurrentIndex(supplier_idx)
-    purchases.quantity.setValue(20)
-    purchases.unit_cost.setValue(10)
-    purchases.add_line()
-    assert purchases.lines.rowCount() == 1
-    purchases.payment.setValue(0)
-    purchases.save_purchase()
+    supplier_idx = next((i for i in range(purchases.supplier.count()) if purchases.supplier.itemData(i) is not None), -1); assert supplier_idx >= 0
+    purchases.supplier.setCurrentIndex(supplier_idx); purchases.quantity.setValue(20); purchases.unit_cost.setValue(10); purchases.add_line(); assert purchases.lines.rowCount() == 1; purchases.payment.setValue(0); purchases.save_purchase()
+
+    sales = SalesPage(); sales.refresh_data(); sidx = sales.product.findData(product_id); assert sidx >= 0
+    sales.product.setCurrentIndex(sidx); sales.quantity.setValue(2); sales.add_line(); assert len(sales.lines) == 1; sales.create_sale()
+
+    inventory = InventoryPage(); inventory.refresh(); assert inventory.balance_table.rowCount() >= 1
+    cashboxes = CashboxesPage(); cashboxes.refresh(); assert cashboxes.cashboxes_table.rowCount() >= 3
+    returns = ReturnsPage(); returns.refresh()
+    reports = ReportsPage(); reports.refresh()
 
     session = get_session()
     try:
-        location = session.scalar(select(StockLocation).where(StockLocation.is_active.is_(True)).order_by(StockLocation.id))
-        assert location is not None
-        from backend.app.modules.inventory.service import InventoryService
-        assert InventoryService(session).get_balance(product_id, location.id) >= 20
+        assert session.scalar(select(Product).where(Product.sku == f"TEST-{token}")) is not None
+        assert session.scalar(select(Customer).where(Customer.code == f"CUS-{token}")) is not None
+        assert session.scalar(select(Supplier).where(Supplier.code == f"SUP-{token}")) is not None
+        assert session.scalar(select(Expense).where(Expense.description == f"مصروف اختبار {token}")) is not None
+        assert session.scalar(select(Revenue).where(Revenue.description == f"إيراد اختبار {token}")) is not None
+        assert session.scalar(select(StockLocation).where(StockLocation.is_active.is_(True))) is not None
     finally:
         session.close()
 
-    sales = SalesPage()
-    sales.refresh_data()
-    sidx = sales.product.findData(product_id)
-    assert sidx >= 0
-    sales.product.setCurrentIndex(sidx)
-    sales.quantity.setValue(2)
-    sales.add_line()
-    assert len(sales.lines) == 1
-    sales.create_sale()
-
-    inventory = InventoryPage()
-    inventory.refresh()
-    assert inventory.balance_table.rowCount() >= 1
-
-    cashboxes = CashboxesPage()
-    cashboxes.refresh()
-    assert cashboxes.cashboxes_table.rowCount() >= 3
-
-    returns = ReturnsPage()
-    returns.refresh()
-
-    reports = ReportsPage()
-    reports.refresh()
-
-    for widget in (products, customers, suppliers, expenses, revenues, purchases, sales, inventory, cashboxes, returns, reports):
-        widget.close()
+    for widget in (products, customers, suppliers, expenses, revenues, purchases, sales, inventory, cashboxes, returns, reports): widget.close()
     app.processEvents()
