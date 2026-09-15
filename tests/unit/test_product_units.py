@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.app.core.database import SessionLocal, initialize_database
 from backend.app.core.models import Product, StockLocation, StockMovement, Unit
 from backend.app.core.product_units import ProductUnit, SaleItemUnit, PurchaseItemUnit
+from backend.app.modules.finance.models import Cashbox, CashboxMovement
 from backend.app.modules.inventory.service import InventoryService
 from backend.app.modules.purchases.service import PurchaseService
 from backend.app.modules.sales.service import SaleService
@@ -55,6 +56,26 @@ def _location(session):
     return location
 
 
+def _seed_cash(session, amount="1000"):
+    cashbox = session.execute(
+        select(Cashbox).where(Cashbox.code == "CASH")
+    ).scalar_one()
+    session.add(
+        CashboxMovement(
+            cashbox_id=cashbox.id,
+            movement_type="TEST_OPENING_BALANCE",
+            amount=Decimal(str(amount)),
+            direction="IN",
+            currency="BASE",
+            reference_type="TEST",
+            reference_id=uuid4().hex,
+            business_date=date.today().isoformat(),
+            idempotency_key="unit-test-cash-" + uuid4().hex,
+        )
+    )
+    session.flush()
+
+
 def test_same_unit_name_has_different_factor_per_product():
     initialize_database()
     session = SessionLocal()
@@ -94,6 +115,7 @@ def test_sale_uses_product_unit_factor_and_preserves_snapshot():
             idempotency_key="unit-test-in-" + uuid4().hex,
             reference_type="TEST",
         )
+        _seed_cash(session, "1000")
         sale = SaleService(session).create_sale(
             document_no="SU-" + uuid4().hex[:10],
             business_date=date.today().isoformat(),
@@ -135,6 +157,7 @@ def test_purchase_normalizes_cost_to_base_unit_and_preserves_snapshot():
         location = _location(session)
         session.add(ProductUnit(product_id=product.id, unit_id=carton.id, conversion_factor=24, sale_price=360, purchase_price=240))
         session.flush()
+        _seed_cash(session, "1000")
         purchase = PurchaseService(session).create_purchase(
             document_no="PU-" + uuid4().hex[:10],
             business_date=date.today().isoformat(),
