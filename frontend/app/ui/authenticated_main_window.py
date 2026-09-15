@@ -16,6 +16,10 @@ class AuthenticatedMainWindow(MainWindow):
         # Current session controls: user identity + explicit logout.
         header = self.centralWidget().layout().itemAt(0).widget()
         header.layout().addWidget(QLabel(f"المستخدم: {self.current_user.get('full_name') or self.current_user.get('username', '')}"))
+        self.license_button = QPushButton("🔑 الترخيص")
+        self.license_button.setObjectName("licenseButton")
+        self.license_button.clicked.connect(self._open_license_dialog)
+        header.layout().addWidget(self.license_button)
         self.logout_button = QPushButton("⎋ خروج من المستخدم")
         self.logout_button.setObjectName("logoutButton")
         self.logout_button.clicked.connect(self.logout_requested.emit)
@@ -83,6 +87,16 @@ class AuthenticatedMainWindow(MainWindow):
             self._clock_timer.timeout.connect(self._update_footer_clock)
             self._clock_timer.start(1000)
             self._update_footer_clock()
+
+    def _open_license_dialog(self):
+        from frontend.app.ui.license_dialog import LicenseDialog
+        dialog = LicenseDialog(self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        dialog.setWindowModality(Qt.ApplicationModal)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        self.license_dialog = dialog
 
     def _safe_credit(self):
         from frontend.app.branding import BRANDING
