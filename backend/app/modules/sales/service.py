@@ -35,7 +35,7 @@ class SaleService:
     def __init__(self, session=None, business_engine: BusinessEngine | None = None):
         self._session = session or get_session()
         self._owns_session = session is None
-        self._business_engine = business_engine
+        self._business_engine = business_engine or BusinessEngine()
 
     def create_sale(
         self,
@@ -296,6 +296,9 @@ class SaleService:
                             else business_date
                         ),
                         payload={
+                            "entity_type": "SALE",
+                            "entity_id": sale.id,
+                            "created_by": created_by,
                             "sale_id": sale.id,
                             "document_no": sale.document_no,
                             "customer_id": sale.customer_id,

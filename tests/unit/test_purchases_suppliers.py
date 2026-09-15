@@ -4,8 +4,10 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy import inspect
 
+from backend.app.core.audit_models import AuditLog
 from backend.app.core.database import engine, get_session, initialize_database
 from backend.app.core.models import Category, Product, StockLocation, Unit
 from backend.app.modules.inventory.service import InventoryService
@@ -356,6 +358,54 @@ def test_purchase_publishes_purchase_confirmed_event():
         assert event.payload["payment_status"] == "PAID"
 
         session.commit()
+
+    finally:
+        session.close()
+
+
+def test_real_purchase_creates_audit_log_automatically():
+    session = get_session()
+
+    try:
+        supplier, product, location = setup_supplier_and_product(session)
+        operation_id = str(uuid.uuid4())
+
+        purchase = PurchaseService(session).create_purchase(
+            document_no="P-AUDIT-0001",
+            business_date="2026-09-14",
+            supplier_id=supplier.id,
+            items=[
+                {
+                    "product_id": product.id,
+                    "stock_location_id": location.id,
+                    "quantity": "1",
+                    "unit_cost": "100",
+                    "discount": "0",
+                }
+            ],
+            payments=[
+                {
+                    "payment_method": "CASH",
+                    "amount": "100",
+                }
+            ],
+            idempotency_key=operation_id,
+        )
+
+        audit = session.execute(
+            select(AuditLog).where(
+                AuditLog.operation_id == operation_id,
+                AuditLog.event_type == "PURCHASE_CONFIRMED",
+                AuditLog.action == "EVENT_PROCESSED",
+            )
+        ).scalar_one_or_none()
+
+        assert purchase.status == "CONFIRMED"
+        assert audit is not None
+        assert audit.entity_type == "PURCHASE"
+        assert audit.entity_id == str(purchase.id)
+
+        session.rollback()
 
     finally:
         session.close()

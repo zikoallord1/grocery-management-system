@@ -35,7 +35,7 @@ class PurchaseService:
     ):
         self._session = session or get_session()
         self._owns_session = session is None
-        self._business_engine = business_engine
+        self._business_engine = business_engine or BusinessEngine()
 
     def create_purchase(
         self,
@@ -293,6 +293,9 @@ class PurchaseService:
                             else business_date
                         ),
                         payload={
+                            "entity_type": "PURCHASE",
+                            "entity_id": purchase.id,
+                            "created_by": created_by,
                             "purchase_id": purchase.id,
                             "document_no": purchase.document_no,
                             "supplier_id": purchase.supplier_id,
