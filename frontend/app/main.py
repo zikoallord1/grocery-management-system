@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QDialog
 from backend.app.core.database import initialize_database
 from backend.app.core.daily_operations import DailyMaintenanceController
 from backend.app.core.licensing import verify_license
-from frontend.app.ui.font_setup import setup_application_font
+from frontend.app.ui.font_setup import setup_application_font, apply_font_to_window
 from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.authenticated_main_window import AuthenticatedMainWindow
 from frontend.app.ui.permissions_page import PermissionsPage
@@ -79,6 +79,7 @@ def main():
         user = login.authenticated_user
         window = AuthenticatedMainWindow(user)
         _add_admin_modules(window)
+        apply_font_to_window(window, app)
         window._notification_timer.setInterval(30000)
         window.refresh_dashboard()
         maintenance = DailyMaintenanceController(window)
