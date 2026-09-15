@@ -355,3 +355,140 @@ class CustomerPayment(Base):
 
 
 
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from backend.app.core.database import Base
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    credit_limit: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+
+class SupplierAccountMovement(Base):
+    __tablename__ = "supplier_account_movements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    supplier_id: Mapped[int] = mapped_column(
+        ForeignKey("suppliers.id"), nullable=False, index=True
+    )
+    movement_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    direction: Mapped[str] = mapped_column(String(10), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="BASE")
+    reference_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    reference_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    business_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True
+    )
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+
+class SupplierPayment(Base):
+    __tablename__ = "supplier_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    supplier_id: Mapped[int] = mapped_column(
+        ForeignKey("suppliers.id"), nullable=False, index=True
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="BASE")
+    payment_method: Mapped[str] = mapped_column(String(40), nullable=False)
+    business_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    reference_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True
+    )
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+
+class Purchase(Base):
+    __tablename__ = "purchases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_no: Mapped[str] = mapped_column(
+        String(50), nullable=False, unique=True, index=True
+    )
+    supplier_id: Mapped[int | None] = mapped_column(
+        ForeignKey("suppliers.id"), nullable=True, index=True
+    )
+    business_date: Mapped[str] = mapped_column(
+        String(10), nullable=False, index=True
+    )
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    discount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0
+    )
+    tax: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0
+    )
+    total: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    credit_amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="DRAFT"
+    )
+    payment_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True
+    )
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+
+class PurchaseItem(Base):
+    __tablename__ = "purchase_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    purchase_id: Mapped[int] = mapped_column(
+        ForeignKey("purchases.id"), nullable=False, index=True
+    )
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"), nullable=False, index=True
+    )
+    quantity: Mapped[Decimal] = mapped_column(
+        Numeric(14, 3), nullable=False
+    )
+    unit_cost: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    discount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0
+    )
+    total: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+
+
+class PurchasePayment(Base):
+    __tablename__ = "purchase_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    purchase_id: Mapped[int] = mapped_column(
+        ForeignKey("purchases.id"), nullable=False, index=True
+    )
+    payment_method: Mapped[str] = mapped_column(String(40), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="BASE")
+    reference_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
