@@ -30,23 +30,36 @@ def clean_database():
     with engine.begin() as connection:
         tables = set(inspect(engine).get_table_names())
 
-        for table in [
-            "customer_payments",
-            "customer_account_movements",
+        cleanup_order = [
+            "cashbox_movements",
+            "expense_payments",
+            "expenses",
+            "purchase_payments",
+            "purchase_items",
+            "purchases",
+            "supplier_payments",
+            "supplier_account_movements",
             "sale_payments",
             "sale_items",
             "sales",
+            "customer_payments",
+            "customer_account_movements",
             "stock_movements",
             "product_barcodes",
+            "payment_methods",
+            "customers",
+            "suppliers",
             "products",
             "stock_locations",
             "units",
             "categories",
-            "customers",
-        ]:
-            if table in tables:
-                connection.exec_driver_sql(f'DELETE FROM "{table}"')
+        ]
 
+        for table in cleanup_order:
+            if table in tables:
+                connection.exec_driver_sql(
+                    f'DELETE FROM "{table}"'
+                )
 
 def setup_customer_product_stock(session, credit_limit=None):
     customer = Customer(

@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
@@ -292,5 +293,69 @@ def test_duplicate_purchase_is_rejected():
 
         with pytest.raises(DuplicatePurchaseError):
             PurchaseService(session).create_purchase(**payload)
+    finally:
+        session.close()
+
+
+def test_purchase_publishes_purchase_confirmed_event():
+    from backend.app.application.business_engine import BusinessEngine
+
+    session = get_session()
+
+    try:
+        supplier, product, location = setup_supplier_and_product(session)
+
+        engine = BusinessEngine()
+        received = []
+
+        engine.register_rule(
+            name="TEST_CAPTURE_PURCHASE_CONFIRMED",
+            event_type="PURCHASE_CONFIRMED",
+            handler=lambda current_session, event: (
+                received.append(event) or []
+            ),
+        )
+
+        service = PurchaseService(
+            session,
+            business_engine=engine,
+        )
+
+        purchase = service.create_purchase(
+            document_no="P-ENGINE-0001",
+            business_date="2026-09-14",
+            items=[
+                {
+                    "product_id": product.id,
+                    "stock_location_id": location.id,
+                    "quantity": "1",
+                    "unit_cost": "100",
+                    "discount": "0",
+                }
+            ],
+            payments=[
+                {
+                    "payment_method": "CASH",
+                    "amount": "100",
+                }
+            ],
+            idempotency_key=str(uuid.uuid4()),
+        )
+
+        assert purchase.status == "CONFIRMED"
+        assert len(received) == 1
+
+        event = received[0]
+        assert event.event_type == "PURCHASE_CONFIRMED"
+        assert event.operation_id == purchase.idempotency_key
+        assert event.payload["purchase_id"] == purchase.id
+        assert event.payload["document_no"] == "P-ENGINE-0001"
+        assert Decimal(event.payload["total"]) == Decimal("100.00")
+        assert Decimal(event.payload["paid_amount"]) == Decimal("100.00")
+        assert Decimal(event.payload["credit_amount"]) == Decimal("0.00")
+        assert event.payload["payment_status"] == "PAID"
+
+        session.commit()
+
     finally:
         session.close()

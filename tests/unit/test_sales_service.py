@@ -18,18 +18,45 @@ from backend.app.modules.sales.service import (
 @pytest.fixture(autouse=True)
 def clean_database():
     initialize_database()
+
     from backend.app.modules.finance.models import Cashbox, PaymentMethod
     from backend.app.core.database import SessionLocal
+
     _setup_session = SessionLocal()
     try:
-        wallet_box = _setup_session.query(Cashbox).filter_by(code='WALLET').first()
+        wallet_box = (
+            _setup_session.query(Cashbox)
+            .filter_by(code="WALLET")
+            .first()
+        )
+
         if wallet_box is None:
-            wallet_box = Cashbox(code='WALLET', name='??????? ?????????', account_type='WALLET', currency='BASE')
+            wallet_box = Cashbox(
+                code="WALLET",
+                name="??????? ?????????",
+                account_type="WALLET",
+                currency="BASE",
+            )
             _setup_session.add(wallet_box)
             _setup_session.flush()
-        wallet_method = _setup_session.query(PaymentMethod).filter_by(code='WALLET').first()
+
+        wallet_method = (
+            _setup_session.query(PaymentMethod)
+            .filter_by(code="WALLET")
+            .first()
+        )
+
         if wallet_method is None:
-            _setup_session.add(PaymentMethod(code='WALLET', name='?????', method_type='WALLET', cashbox_id=wallet_box.id, is_active=True))
+            _setup_session.add(
+                PaymentMethod(
+                    code="WALLET",
+                    name="?????",
+                    method_type="WALLET",
+                    cashbox_id=wallet_box.id,
+                    is_active=True,
+                )
+            )
+
         _setup_session.commit()
     finally:
         _setup_session.close()
@@ -37,19 +64,98 @@ def clean_database():
     with engine.begin() as connection:
         tables = set(inspect(engine).get_table_names())
 
-        for table in [
+        # Delete child/dependent records before products.
+        cleanup_order = [
+            "cashbox_movements",
+            "customer_payments",
+            "customer_account_movements",
             "sale_payments",
             "sale_items",
             "sales",
             "stock_movements",
             "product_barcodes",
+            "expense_payments",
+            "expenses",
+            "purchase_payments",
+            "purchase_items",
+            "purchases",
+            "supplier_payments",
+            "supplier_account_movements",
+            "payment_methods",
+            "customers",
+            "suppliers",
             "products",
             "stock_locations",
             "units",
             "categories",
-        ]:
+        ]
+
+        for table in cleanup_order:
             if table in tables:
-                connection.exec_driver_sql(f'DELETE FROM "{table}"')
+                connection.exec_driver_sql(
+                    f'DELETE FROM "{table}"'
+                )
+
+    # Recreate default CASH and WALLET after cleanup.
+    from backend.app.modules.finance.models import Cashbox, PaymentMethod
+    from backend.app.core.database import SessionLocal
+
+    seed_session = SessionLocal()
+    try:
+        defaults = [
+            {
+                "code": "CASH",
+                "name": "?????",
+                "account_type": "CASH",
+                "method_type": "CASH",
+                "method_name": "???",
+            },
+            {
+                "code": "WALLET",
+                "name": "??????? ?????????",
+                "account_type": "WALLET",
+                "method_type": "WALLET",
+                "method_name": "?????",
+            },
+        ]
+
+        for item in defaults:
+            cash_box = (
+                seed_session.query(Cashbox)
+                .filter_by(code=item["code"])
+                .first()
+            )
+
+            if cash_box is None:
+                cash_box = Cashbox(
+                    code=item["code"],
+                    name=item["name"],
+                    account_type=item["account_type"],
+                    currency="BASE",
+                )
+                seed_session.add(cash_box)
+                seed_session.flush()
+
+            payment_method = (
+                seed_session.query(PaymentMethod)
+                .filter_by(code=item["code"])
+                .first()
+            )
+
+            if payment_method is None:
+                seed_session.add(
+                    PaymentMethod(
+                        code=item["code"],
+                        name=item["method_name"],
+                        method_type=item["method_type"],
+                        cashbox_id=cash_box.id,
+                        is_active=True,
+                    )
+                )
+
+        seed_session.commit()
+    finally:
+        seed_session.close()
 
 
 def setup_product_and_stock(session):

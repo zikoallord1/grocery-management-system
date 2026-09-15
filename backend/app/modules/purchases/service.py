@@ -2,6 +2,9 @@
 
 from sqlalchemy import select
 
+from backend.app.application.business_engine import BusinessEngine
+from backend.app.domain.business_events import BusinessEvent
+
 from backend.app.core.database import get_session
 from backend.app.core.models import (
     Product,
@@ -25,9 +28,14 @@ class DuplicatePurchaseError(PurchaseError):
 
 
 class PurchaseService:
-    def __init__(self, session=None):
+    def __init__(
+        self,
+        session=None,
+        business_engine: BusinessEngine | None = None,
+    ):
         self._session = session or get_session()
         self._owns_session = session is None
+        self._business_engine = business_engine
 
     def create_purchase(
         self,
@@ -270,6 +278,32 @@ class PurchaseService:
                 )
 
             session.flush()
+
+            if self._business_engine is not None:
+                self._business_engine.process(
+                    session,
+                    BusinessEvent(
+                        event_type="PURCHASE_CONFIRMED",
+                        operation_id=idempotency_key,
+                        business_date=(
+                            __import__("datetime").date.fromisoformat(
+                                business_date
+                            )
+                            if isinstance(business_date, str)
+                            else business_date
+                        ),
+                        payload={
+                            "purchase_id": purchase.id,
+                            "document_no": purchase.document_no,
+                            "supplier_id": purchase.supplier_id,
+                            "subtotal": str(purchase.subtotal),
+                            "total": str(purchase.total),
+                            "paid_amount": str(purchase.paid_amount),
+                            "credit_amount": str(purchase.credit_amount),
+                            "payment_status": purchase.payment_status,
+                        },
+                    ),
+                )
 
             if self._owns_session:
                 session.commit()
