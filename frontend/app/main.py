@@ -1,7 +1,7 @@
 import sys
 
-from PySide6.QtCore import Qt, QDialog
-from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QDialog
 
 from backend.app.core.database import initialize_database
 from backend.app.core.daily_operations import DailyMaintenanceController
