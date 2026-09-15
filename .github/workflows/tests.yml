@@ -32,6 +32,11 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest tests -q
 
+      - name: Build documentation
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/build_documentation.py
+
   windows-build:
     needs: test
     runs-on: windows-latest
@@ -50,11 +55,41 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Build documentation
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/build_documentation.py
+
       - name: Build Windows executable
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name GroceryManagementSystem run.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "build_docs;docs" --name GroceryManagementSystem run.py
 
       - name: Build license manager executable
         run: pyinstaller --noconfirm --clean --onefile --windowed --name GroceryLicenseManager license_manager.py
+
+      - name: Prepare client package
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path client-package | Out-Null
+          Copy-Item dist/GroceryManagementSystem.exe client-package/
+          Copy-Item dist/GroceryLicenseManager.exe client-package/
+          Copy-Item "build_docs/دليل استخدام البرنامج.pdf" client-package/
+          Copy-Item "build_docs/تقرير البرنامج.pdf" client-package/
+          Copy-Item "build_docs/معلومات الإصدار.txt" client-package/
+          Copy-Item "build_docs/screens" client-package/صور-الشرح -Recurse
+          Set-Content -Path client-package/README.txt -Value @"
+نظام إدارة البقالات
+
+محتويات الحزمة:
+- GroceryManagementSystem.exe : البرنامج الرئيسي
+- GroceryLicenseManager.exe : مدير إنشاء التراخيص
+- دليل استخدام البرنامج.pdf : دليل الاستخدام المصور
+- تقرير البرنامج.pdf : التقرير المصور
+- صور-الشرح : لقطات حقيقية من الواجهة الحالية
+- معلومات الإصدار.txt : معلومات الإصدار والدعم
+
+تنبيه:
+مفتاح الإصدار الخاص بالتراخيص يبقى لدى مسؤول التراخيص ولا يُسلّم للعميل.
+"@ -Encoding UTF8
 
       - name: Upload Windows application
         uses: actions/upload-artifact@v4
@@ -67,3 +102,9 @@ jobs:
         with:
           name: GroceryLicenseManager-Windows
           path: dist/GroceryLicenseManager.exe
+
+      - name: Upload complete client package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GroceryManagementSystem-ClientPackage
+          path: client-package
