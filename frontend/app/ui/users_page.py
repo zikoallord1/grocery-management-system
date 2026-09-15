@@ -1,6 +1,5 @@
 import hashlib
 import json
-from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -15,10 +14,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from backend.app.core.database import PROJECT_ROOT
+from backend.app.core.database import DATA_DIR
 
 
-USERS_FILE = PROJECT_ROOT / "data" / "users.json"
+USERS_FILE = DATA_DIR / "users.json"
 
 
 class UsersPage(QFrame):
@@ -35,7 +34,7 @@ class UsersPage(QFrame):
         title = QLabel("المستخدمون")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
-        desc = QLabel("إضافة وتعديل وتفعيل المستخدمين مع حفظ البيانات فعليًا على الجهاز.")
+        desc = QLabel("إضافة وتعديل وتفعيل المستخدمين مع حفظ البيانات بشكل دائم على الجهاز.")
         desc.setWordWrap(True)
         desc.setObjectName("pageDescription")
         layout.addWidget(desc)
@@ -95,7 +94,13 @@ class UsersPage(QFrame):
                 return data if isinstance(data, list) else []
         except (OSError, ValueError):
             pass
-        return [{"username": "admin", "full_name": "مدير النظام", "password_hash": self._hash_password("admin123"), "role": "مدير النظام", "active": True}]
+        users = [{"username": "admin", "full_name": "مدير النظام", "password_hash": self._hash_password("admin123"), "role": "مدير النظام", "active": True}]
+        try:
+            self._users = users
+            self._write_users()
+        except OSError:
+            pass
+        return users
 
     def _write_users(self):
         USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -151,7 +156,12 @@ class UsersPage(QFrame):
             "role": self.role.currentText(),
             "active": True,
         })
-        self._write_users()
+        try:
+            self._write_users()
+        except OSError as exc:
+            self._users.pop()
+            self.status.setText(f"تعذر حفظ المستخدم على الجهاز: {exc}")
+            return
         self._refresh_list()
         self.username.clear()
         self.full_name.clear()
@@ -170,12 +180,18 @@ class UsersPage(QFrame):
                 self.status.setText("اسم المستخدم مستخدم من حساب آخر.")
                 return
         user = self._users[index]
+        old = dict(user)
         user["username"] = username
         user["full_name"] = full_name
         user["role"] = self.role.currentText()
         if password:
             user["password_hash"] = self._hash_password(password)
-        self._write_users()
+        try:
+            self._write_users()
+        except OSError as exc:
+            self._users[index] = old
+            self.status.setText(f"تعذر حفظ التعديل على الجهاز: {exc}")
+            return
         self._refresh_list()
         self.status.setText("تم تعديل المستخدم وحفظ التغييرات.")
 
@@ -185,6 +201,11 @@ class UsersPage(QFrame):
             self.status.setText("اختر مستخدمًا من القائمة أولًا.")
             return
         self._users[index]["active"] = not self._users[index].get("active", True)
-        self._write_users()
+        try:
+            self._write_users()
+        except OSError as exc:
+            self._users[index]["active"] = not self._users[index].get("active", True)
+            self.status.setText(f"تعذر حفظ حالة المستخدم: {exc}")
+            return
         self._refresh_list()
         self.status.setText("تم تحديث حالة المستخدم.")
