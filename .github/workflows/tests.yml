@@ -27,6 +27,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Materialize bundled Arabic font
+        run: python tools/vendor_arabic_font.py
+
       - name: Run tests
         env:
           QT_QPA_PLATFORM: offscreen
@@ -50,13 +53,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
-      - name: Build documentation
+      - name: Materialize bundled Arabic font
+        run: python tools/vendor_arabic_font.py
+
+      - name: Verify bundled font
+        shell: powershell
+        run: |
+          $font = "frontend/app/assets/fonts/NotoSansArabic-Regular.ttf"
+          if (!(Test-Path $font)) { throw "Bundled Arabic font missing: $font" }
+          $size = (Get-Item $font).Length
+          if ($size -lt 100000) { throw "Bundled Arabic font is unexpectedly small: $size bytes" }
+          Write-Host "Bundled Arabic font verified: $size bytes"
+
+      - name: Build documentation and screenshots
         env:
           QT_QPA_PLATFORM: offscreen
         run: python tools/build_documentation.py
 
+      - name: Verify generated documentation assets
+        shell: powershell
+        run: |
+          if (!(Test-Path "build_docs/دليل استخدام البرنامج.pdf")) { throw "User manual PDF missing" }
+          if (!(Test-Path "build_docs/تقرير البرنامج.pdf")) { throw "Report PDF missing" }
+          $screens = Get-ChildItem "build_docs/screens/*.png"
+          if ($screens.Count -lt 1) { throw "No documentation screenshots generated" }
+          Write-Host "Generated $($screens.Count) screenshots"
+
       - name: Build Windows executable
-        run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "build_docs;docs" --name GroceryManagementSystem run.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "build_docs;docs" --add-data "frontend/app/assets/fonts;frontend/app/assets/fonts" --name GroceryManagementSystem run.py
 
       - name: Build license manager executable
         run: pyinstaller --noconfirm --clean --onefile --windowed --name GroceryLicenseManager license_manager.py
