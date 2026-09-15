@@ -34,8 +34,7 @@ def test_product_and_expense_entry_accept_data(tmp_path, monkeypatch):
     session.add(Unit(name="قطعة", symbol="قطعة", is_active=True))
     session.add(ExpenseCategory(name="أخرى", is_active=True))
     session.add(PaymentMethod(code="CREDIT", name="آجل / غير مدفوع", method_type="CREDIT", cashbox_id=None, is_active=True))
-    session.commit()
-    session.close()
+    session.commit(); session.close()
 
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(QMessageBox, "critical", staticmethod(lambda *args, **kwargs: None))
@@ -45,7 +44,7 @@ def test_product_and_expense_entry_accept_data(tmp_path, monkeypatch):
     product = ProductsPage()
     product.sku.setText("ITM-MINERAL-WATER")
     product.name.setText("ماء معدني")
-    product.purchase.setValue(100)
+    product.purchase_price.setValue(100)
     product.sale_price.setValue(150)
     assert product.unit.currentData() is not None
     product.save_product()
@@ -56,49 +55,19 @@ def test_product_and_expense_entry_accept_data(tmp_path, monkeypatch):
     assert saved_product.sku == "ITM-MINERAL-WATER"
     session.close()
 
-    expense = ExpensesPage()
-    expense.amount.setValue(250)
-    expense.description.setText("نقل")
-    expense.save_expense()
-
-    session = Session()
-    saved_expense = session.scalar(select(Expense).order_by(Expense.id.desc()))
-    assert saved_expense is not None
-    assert saved_expense.amount == 250
-    assert saved_expense.description == "نقل"
-    session.close()
-    product.close()
-    expense.close()
-    app.processEvents()
+    expense = ExpensesPage(); expense.amount.setValue(250); expense.description.setText("نقل"); expense.save_expense()
+    session = Session(); saved_expense = session.scalar(select(Expense).order_by(Expense.id.desc()))
+    assert saved_expense is not None and saved_expense.amount == 250 and saved_expense.description == "نقل"
+    session.close(); product.close(); expense.close(); app.processEvents()
 
 
 def test_users_and_role_permissions_persist(tmp_path, monkeypatch):
-    users_file = tmp_path / "users.json"
-    permissions_file = tmp_path / "permissions.json"
-    monkeypatch.setattr(users_page, "USERS_FILE", users_file)
-    monkeypatch.setattr(permissions_page, "PERMISSIONS_FILE", permissions_file)
+    users_file = tmp_path / "users.json"; permissions_file = tmp_path / "permissions.json"
+    monkeypatch.setattr(users_page, "USERS_FILE", users_file); monkeypatch.setattr(permissions_page, "PERMISSIONS_FILE", permissions_file)
     app = QApplication.instance() or QApplication([])
-
-    users = UsersPage()
-    users._new_user()
-    users.username.setText("cashier1")
-    users.full_name.setText("كاشير 1")
-    users.password.setText("123456")
-    users.role.setCurrentText("بائع")
-    users._save_user()
-    data = json.loads(users_file.read_text(encoding="utf-8"))
-    assert any(item["username"] == "cashier1" for item in data)
-
-    permissions = PermissionsPage()
-    permissions.role.setCurrentText("بائع")
-    permissions._set_module("المبيعات", True)
-    permissions._save()
-    saved = json.loads(permissions_file.read_text(encoding="utf-8"))
-    assert saved["بائع"]["المبيعات"]["إضافة"] is True
-    permissions._set_module("المبيعات", False)
-    permissions._save()
-    saved = json.loads(permissions_file.read_text(encoding="utf-8"))
-    assert saved["بائع"]["المبيعات"]["إضافة"] is False
-    users.close()
-    permissions.close()
-    app.processEvents()
+    users = UsersPage(); users._new_user(); users.username.setText("cashier1"); users.full_name.setText("كاشير 1"); users.password.setText("123456"); users.role.setCurrentText("بائع"); users._save_user()
+    data = json.loads(users_file.read_text(encoding="utf-8")); assert any(item["username"] == "cashier1" for item in data)
+    permissions = PermissionsPage(); permissions.role.setCurrentText("بائع"); permissions._set_module("المبيعات", True); permissions._save()
+    saved = json.loads(permissions_file.read_text(encoding="utf-8")); assert saved["بائع"]["المبيعات"]["إضافة"] is True
+    permissions._set_module("المبيعات", False); permissions._save(); saved = json.loads(permissions_file.read_text(encoding="utf-8")); assert saved["بائع"]["المبيعات"]["إضافة"] is False
+    users.close(); permissions.close(); app.processEvents()
