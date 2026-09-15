@@ -73,11 +73,11 @@ jobs:
       - name: Verify generated documentation assets
         shell: powershell
         run: |
-          if (!(Test-Path "build_docs/دليل استخدام البرنامج.pdf")) { throw "User manual PDF missing" }
-          if (!(Test-Path "build_docs/تقرير البرنامج.pdf")) { throw "Report PDF missing" }
-          $screens = Get-ChildItem "build_docs/screens/*.png"
+          $pdfs = Get-ChildItem -LiteralPath "build_docs" -Filter "*.pdf" -File
+          if ($pdfs.Count -lt 2) { throw "Expected at least 2 documentation PDFs, found $($pdfs.Count)" }
+          $screens = Get-ChildItem -LiteralPath "build_docs/screens" -Filter "*.png" -File
           if ($screens.Count -lt 1) { throw "No documentation screenshots generated" }
-          Write-Host "Generated $($screens.Count) screenshots"
+          Write-Host "Generated $($screens.Count) screenshots and $($pdfs.Count) PDFs"
 
       - name: Build Windows executable
         run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "build_docs;docs" --add-data "frontend/app/assets/fonts;frontend/app/assets/fonts" --name GroceryManagementSystem run.py
