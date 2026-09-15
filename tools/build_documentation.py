@@ -22,7 +22,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Page
 
 from backend.app.core.database import initialize_database
 from frontend.app.branding import BRANDING
-from frontend.app.ui.font_setup import setup_application_font, bundled_font_path
+from frontend.app.ui.font_setup import setup_application_font, apply_font_to_window, bundled_font_path
 from frontend.app.ui.main_window import MainWindow
 
 OUT = ROOT / "build_docs"
@@ -45,6 +45,7 @@ def capture_screenshots() -> list[tuple[str, Path]]:
     setup_application_font(app)
     window = MainWindow()
     window.resize(1180, 760)
+    apply_font_to_window(window, app)
     window.show()
     app.processEvents()
     targets = [("01-الرئيسية", window.dashboard)]
