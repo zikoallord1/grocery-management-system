@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from sqlalchemy import select
 
 from backend.app.core.database import get_session
@@ -21,6 +21,7 @@ class ProductsPage(QWidget):
         self.category.configure_smart_input("ابحث عن الفئة..."); self.unit.configure_smart_input("ابحث عن الوحدة...")
         self.purchase_price = QDoubleSpinBox(); self.sale_price = QDoubleSpinBox()
         self.purchase = self.purchase_price
+        self.sale = self.sale_price
         self.minimum_stock = QDoubleSpinBox(); self.reorder_level = QDoubleSpinBox()
         self.active = QCheckBox("الصنف فعال وقابل للبيع"); self.active.setChecked(True)
         for box in (self.purchase_price, self.sale_price): box.setDecimals(2); box.setMaximum(999999999)
