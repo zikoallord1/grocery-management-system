@@ -19,6 +19,8 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 from backend.app.core.database import initialize_database
 from frontend.app.branding import BRANDING
@@ -28,6 +30,11 @@ from frontend.app.ui.main_window import MainWindow
 OUT = ROOT / "build_docs"
 SCREEN_DIR = OUT / "screens"
 DOCS_DIR = ROOT / "docs" / "client"
+
+
+def rtl(text: str) -> str:
+    """Shape Arabic letters and apply bidi ordering for ReportLab."""
+    return get_display(arabic_reshaper.reshape(text))
 
 
 def _register_font() -> str:
@@ -76,8 +83,8 @@ def build_pdf(path: Path, title: str, screenshots: list[tuple[str, Path]], detai
     center = ParagraphStyle("center", parent=body, alignment=TA_CENTER)
     title_style = ParagraphStyle("title", parent=heading, fontSize=22, alignment=TA_CENTER)
     doc = SimpleDocTemplate(str(path), pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=15*mm, bottomMargin=15*mm)
-    story = [Paragraph(title, title_style), Spacer(1, 5*mm)]
-    story.append(Paragraph(f"{BRANDING.program_name} — إصدار توثيقي بتاريخ {date.today().isoformat()}", center))
+    story = [Paragraph(rtl(title), title_style), Spacer(1, 5*mm)]
+    story.append(Paragraph(rtl(f"{BRANDING.program_name} — إصدار توثيقي بتاريخ {date.today().isoformat()}"), center))
     story.append(Spacer(1, 7*mm))
     if detailed:
         sections = [
@@ -91,18 +98,18 @@ def build_pdf(path: Path, title: str, screenshots: list[tuple[str, Path]], detai
             ("التراخيص", "يستخدم النظام ترخيصًا موقّعًا رقميًا ومربوطًا بمعرّف التثبيت. برنامج مدير التراخيص يحتفظ بمفتاح الإصدار الخاص، بينما النسخة العميلة تستخدم مفتاح التحقق العام فقط."),
         ]
         for heading_text, text in sections:
-            story.extend([Paragraph(heading_text, heading), Paragraph(text, body)])
+            story.extend([Paragraph(rtl(heading_text), heading), Paragraph(rtl(text), body)])
         story.append(PageBreak())
-    story.append(Paragraph("الواجهات المصورة", heading))
+    story.append(Paragraph(rtl("الواجهات المصورة"), heading))
     for name, image_path in screenshots:
-        story.append(Paragraph(name, heading))
+        story.append(Paragraph(rtl(name), heading))
         if image_path.exists():
             story.append(Image(str(image_path), width=175*mm, height=113*mm, kind="proportional"))
         story.append(Spacer(1, 5*mm))
-        story.append(Paragraph("لقطة حقيقية مولدة من واجهة البرنامج الحالية أثناء بناء التوثيق.", center))
+        story.append(Paragraph(rtl("لقطة حقيقية مولدة من واجهة البرنامج الحالية أثناء بناء التوثيق."), center))
         story.append(PageBreak())
-    story.append(Paragraph(BRANDING.designer_credit, center))
-    story.append(Paragraph(BRANDING.contact_text, center))
+    story.append(Paragraph(rtl(BRANDING.designer_credit), center))
+    story.append(Paragraph(rtl(BRANDING.contact_text), center))
     doc.build(story)
 
 
