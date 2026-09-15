@@ -1,5 +1,4 @@
 import os
-from datetime import date
 from uuid import uuid4
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -8,8 +7,8 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from sqlalchemy import select
 
 from backend.app.core.database import get_session, initialize_database
-from backend.app.core.models import Customer, Product, Supplier, StockLocation
-from backend.app.modules.finance.models import Cashbox, Expense, ExpenseCategory, PaymentMethod
+from backend.app.core.models import Product, StockLocation
+from backend.app.modules.finance.models import Expense
 from frontend.app.ui.cashboxes_page import CashboxesPage
 from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.expenses_page import ExpensesPage
@@ -33,13 +32,12 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     app = QApplication.instance() or QApplication([])
     _silent_message_boxes(monkeypatch)
     token = uuid4().hex[:10].upper()
-    today = date.today().isoformat()
 
     # 1) Product entry
     products = ProductsPage()
     products.name.setText(f"صنف اختبار {token}")
     products.sku.setText(f"TEST-{token}")
-    products.barcode.setText(f"990{token[:10]}")
+    products.barcode.setText(f"990{token}")
     products.purchase.setValue(10)
     products.sale.setValue(15)
     products.minimum.setValue(2)
@@ -67,18 +65,15 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     suppliers.phone.setText("777111111")
     suppliers.save_supplier()
 
-    # 4) Expense entry using the intentionally supported unpaid/credit method,
-    # so the test does not depend on an existing cash balance.
+    # 4) Expense entry as credit/unpaid so it is independent of cash balance.
     expenses = ExpensesPage()
     expenses.refresh()
-    expenses.category.setCurrentIndex(0)
-    credit_index = expenses.payment_method.findData(next(
-        (expenses.payment_method.itemData(i) for i in range(expenses.payment_method.count())
-         if "آجل" in expenses.payment_method.itemText(i)),
-        None,
-    ))
-    if credit_index >= 0:
-        expenses.payment_method.setCurrentIndex(credit_index)
+    credit_index = next(
+        (i for i in range(expenses.payment_method.count()) if "آجل" in expenses.payment_method.itemText(i)),
+        -1,
+    )
+    assert credit_index >= 0
+    expenses.payment_method.setCurrentIndex(credit_index)
     expenses.description.setText(f"مصروف اختبار {token}")
     expenses.amount.setValue(25)
     expenses.save_expense()
@@ -89,20 +84,23 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     finally:
         session.close()
 
-    # 5) Purchase entry: creates stock that the sales tab can consume.
+    # 5) Purchase entry as credit: creates stock without requiring opening cash.
     purchases = PurchasesPage()
     purchases.refresh()
     pidx = purchases.product.findData(product_id)
     assert pidx >= 0
     purchases.product.setCurrentIndex(pidx)
+    supplier_idx = next((i for i in range(purchases.supplier.count()) if purchases.supplier.itemData(i) is not None), -1)
+    assert supplier_idx >= 0
+    purchases.supplier.setCurrentIndex(supplier_idx)
     purchases.quantity.setValue(20)
     purchases.unit_cost.setValue(10)
-    # Use the default cash payment; purchase service is responsible for the accounting link.
     purchases.add_line()
     assert purchases.lines.rowCount() == 1
+    purchases.payment.setValue(0)
     purchases.save_purchase()
 
-    # 6) Sales entry against the stock created above.
+    # 6) Sales entry consumes the stock created by the purchase.
     sales = SalesPage()
     sales.refresh_data()
     sidx = sales.product.findData(product_id)
@@ -113,14 +111,7 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
     assert len(sales.lines) == 1
     sales.create_sale()
 
-    session = get_session()
-    try:
-        stock_location = session.scalar(select(StockLocation).where(StockLocation.is_active.is_(True)).order_by(StockLocation.id))
-        assert stock_location is not None
-    finally:
-        session.close()
-
-    # 7) Remaining tabs must at least load their real data models after entries.
+    # 7) Inventory, cash/accounts, returns and reports must remain usable after real entries.
     inventory = InventoryPage()
     inventory.refresh()
     assert inventory.balance_table.rowCount() >= 1
@@ -134,6 +125,13 @@ def test_real_data_entry_across_business_tabs(monkeypatch):
 
     reports = ReportsPage()
     reports.refresh()
+
+    session = get_session()
+    try:
+        stock_location = session.scalar(select(StockLocation).where(StockLocation.is_active.is_(True)).order_by(StockLocation.id))
+        assert stock_location is not None
+    finally:
+        session.close()
 
     for widget in (products, customers, suppliers, expenses, purchases, sales, inventory, cashboxes, returns, reports):
         widget.close()
