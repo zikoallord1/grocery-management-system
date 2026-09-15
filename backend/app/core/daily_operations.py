@@ -91,7 +91,7 @@ def create_daily_backup(business_date: str) -> Path:
 
 
 def close_previous_day(now: datetime | None = None) -> Path | None:
-    """Close yesterday once and create its automatic backup."""
+    """Close yesterday once and create an automatic backup containing the lock."""
     current = now or datetime.now()
     target_text = (current.date() - timedelta(days=1)).isoformat()
 
@@ -110,13 +110,14 @@ def close_previous_day(now: datetime | None = None) -> Path | None:
                 record = DailyClose(
                     business_date=target_text,
                     closed_at=current,
-                    status="CLOSING",
+                    status="CLOSED",
                 )
                 session.add(record)
             else:
-                record.status = "CLOSING"
+                record.status = "CLOSED"
                 record.error_message = None
                 record.closed_at = current
+                record.backup_path = None
             session.commit()
 
             try:
