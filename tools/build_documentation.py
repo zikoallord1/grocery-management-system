@@ -22,6 +22,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Page
 
 from backend.app.core.database import initialize_database
 from frontend.app.branding import BRANDING
+from frontend.app.ui.font_setup import setup_application_font
 from frontend.app.ui.main_window import MainWindow
 
 OUT = ROOT / "build_docs"
@@ -46,6 +47,7 @@ def capture_screenshots() -> list[tuple[str, Path]]:
     SCREEN_DIR.mkdir(parents=True, exist_ok=True)
     initialize_database()
     app = QApplication.instance() or QApplication(sys.argv)
+    setup_application_font(app)
     window = MainWindow()
     window.resize(1180, 760)
     window.show()
