@@ -7,3 +7,4 @@ pyinstaller>=6,<7
 numpy>=2,<3
 opencv-python-headless>=4.10,<5
 pyzbar>=0.1.9,<1
+cryptography>=43,<47
