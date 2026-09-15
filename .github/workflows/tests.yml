@@ -30,6 +30,11 @@ jobs:
       - name: Materialize bundled Arabic font
         run: python tools/vendor_arabic_font.py
 
+      - name: Verify Arabic font rendering
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/verify_arabic_font.py
+
       - name: Run tests
         env:
           QT_QPA_PLATFORM: offscreen
@@ -64,6 +69,11 @@ jobs:
           if ($size -lt 100000) { throw "Bundled Arabic font is unexpectedly small: $size bytes" }
           Write-Host "Bundled Arabic font verified: $size bytes"
 
+      - name: Verify Arabic font rendering
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/verify_arabic_font.py
+
       - name: Build documentation and screenshots
         env:
           QT_QPA_PLATFORM: offscreen
@@ -76,13 +86,15 @@ jobs:
           if ($pdfs.Count -lt 2) { throw "Expected at least 2 documentation PDFs, found $($pdfs.Count)" }
           $screens = Get-ChildItem -LiteralPath "build_docs/screens" -Filter "*.png" -File
           if ($screens.Count -lt 1) { throw "No documentation screenshots generated" }
-          Write-Host "Generated $($screens.Count) screenshots and $($pdfs.Count) PDFs"
+          $smoke = Get-Item -LiteralPath "build_docs/arabic-font-smoke.png" -ErrorAction SilentlyContinue
+          if ($null -eq $smoke) { throw "Arabic font smoke screenshot was not generated" }
+          Write-Host "Generated $($screens.Count) screenshots, $($pdfs.Count) PDFs, and Arabic font smoke screenshot"
 
       - name: Build Windows executable
         run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "build_docs;docs" --add-data "frontend/app/assets/fonts;frontend/app/assets/fonts" --name GroceryManagementSystem run.py
 
       - name: Build license manager executable
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name GroceryLicenseManager license_manager.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "frontend/app/assets/fonts;frontend/app/assets/fonts" --name GroceryLicenseManager license_manager.py
 
       - name: Prepare client package
         run: python tools/prepare_client_package.py
