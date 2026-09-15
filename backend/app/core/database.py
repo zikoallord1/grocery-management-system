@@ -66,6 +66,7 @@ def _ensure_default_login():
 
 def _ensure_default_finance_setup():
     from backend.app.modules.finance.models import Cashbox, ExpenseCategory, PaymentMethod
+    from backend.app.core.models import Category, StockLocation, Unit
 
     session = SessionLocal()
     try:
@@ -101,7 +102,16 @@ def _ensure_default_finance_setup():
             if category is None:
                 session.add(ExpenseCategory(name=name))
 
-        from backend.app.core.models import StockLocation
+        for name, symbol in [("قطعة", "قط"), ("كيلوغرام", "كجم"), ("كرتون", "كرتون"), ("علبة", "علبة"), ("لتر", "لتر")]:
+            unit = session.execute(select(Unit).where(Unit.name == name)).scalar_one_or_none()
+            if unit is None:
+                session.add(Unit(name=name, symbol=symbol, is_active=True))
+
+        for name in ["مواد غذائية", "مشروبات", "ألبان", "منظفات", "معلبات", "حلويات", "أخرى"]:
+            category = session.execute(select(Category).where(Category.name == name)).scalar_one_or_none()
+            if category is None:
+                session.add(Category(name=name, is_active=True))
+
         location = session.execute(select(StockLocation).where(StockLocation.code == "MAIN")).scalar_one_or_none()
         if location is None:
             session.add(StockLocation(code="MAIN", name="المخزن الرئيسي", location_type="STORE", is_active=True))
