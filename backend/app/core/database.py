@@ -88,17 +88,21 @@ def _ensure_default_finance_setup():
                 select(PaymentMethod).where(PaymentMethod.code == code)
             ).scalar_one_or_none()
             if method is None:
-                session.add(
-                    PaymentMethod(
-                        code=code,
-                        name=name,
-                        method_type=method_type,
-                        cashbox_id=cashboxes[cashbox_code].id,
-                    )
-                )
+                session.add(PaymentMethod(code=code, name=name, method_type=method_type, cashbox_id=cashboxes[cashbox_code].id))
             elif method.cashbox_id is None:
                 method.cashbox_id = cashboxes[cashbox_code].id
                 method.is_active = True
+
+        credit = session.execute(
+            select(PaymentMethod).where(PaymentMethod.code == "CREDIT")
+        ).scalar_one_or_none()
+        if credit is None:
+            session.add(PaymentMethod(code="CREDIT", name="آجل / غير مدفوع", method_type="CREDIT", cashbox_id=None))
+        else:
+            credit.name = "آجل / غير مدفوع"
+            credit.method_type = "CREDIT"
+            credit.cashbox_id = None
+            credit.is_active = True
 
         for name in ["مشتريات", "رواتب وأجور", "كهرباء وماء", "نقل ومواصلات", "صيانة", "اتصالات", "إيجار", "أخرى"]:
             category = session.execute(
@@ -113,14 +117,7 @@ def _ensure_default_finance_setup():
             select(StockLocation).where(StockLocation.code == "MAIN")
         ).scalar_one_or_none()
         if location is None:
-            session.add(
-                StockLocation(
-                    code="MAIN",
-                    name="المخزن الرئيسي",
-                    location_type="STORE",
-                    is_active=True,
-                )
-            )
+            session.add(StockLocation(code="MAIN", name="المخزن الرئيسي", location_type="STORE", is_active=True))
 
         session.commit()
 
