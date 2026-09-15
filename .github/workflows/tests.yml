@@ -53,8 +53,17 @@ jobs:
       - name: Build Windows executable
         run: pyinstaller --noconfirm --clean --onefile --windowed --name GroceryManagementSystem run.py
 
-      - name: Upload Windows executable
+      - name: Build license manager executable
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name GroceryLicenseManager license_manager.py
+
+      - name: Upload Windows application
         uses: actions/upload-artifact@v4
         with:
           name: GroceryManagementSystem-Windows
           path: dist/GroceryManagementSystem.exe
+
+      - name: Upload license manager
+        uses: actions/upload-artifact@v4
+        with:
+          name: GroceryLicenseManager-Windows
+          path: dist/GroceryLicenseManager.exe
