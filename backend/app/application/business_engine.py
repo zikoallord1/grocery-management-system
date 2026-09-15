@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.app.domain.business_events import BusinessEffect, BusinessEvent
+from backend.app.core.audit_service import AuditService
 
 
 class BusinessEngineError(Exception):
@@ -118,5 +119,21 @@ class BusinessEngine:
                 )
 
             handler(session, event, effect)
+
+        if session is not None:
+            AuditService(session).record(
+                operation_id=event.operation_id,
+                event_type=event.event_type,
+                action="EVENT_PROCESSED",
+                entity_type=event.payload.get("entity_type"),
+                entity_id=(
+                    str(event.payload["entity_id"])
+                    if event.payload.get("entity_id") is not None
+                    else None
+                ),
+                user_id=event.payload.get("created_by"),
+                description=f"Business event processed: {event.event_type}",
+                details=dict(event.payload),
+            )
 
         return effects
