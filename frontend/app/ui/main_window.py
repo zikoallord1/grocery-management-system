@@ -94,7 +94,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._notification_timer = QTimer(self)
         self._notification_timer.timeout.connect(self._move_notification)
-        self._notification_timer.start(6000)
+        self._notification_timer.start(12000)
 
     def _build_ui(self):
         root = QWidget()
@@ -428,18 +428,4 @@ class MainWindow(QMainWindow):
         #secondaryButton { background: #eef2f6; }
         #actionButton { min-height: 48px; padding: 0 12px; }
         #linkButton { border: none; background: transparent; color: #17324d; }
-        #scannerToggle { background: white; color: #17324d; border: none; }
-        #barcodeScanner { background: white; border: 2px solid #17324d; border-radius: 10px; }
-        #scannerTitle { font-weight: 700; color: #17324d; }
-        #scannerStatus { color: #61758a; font-size: 12px; }
-        #scannerPreview { background: #111827; color: white; border-radius: 8px; }
-        QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QDateTimeEdit { min-height: 38px; padding: 4px 9px; border: 1px solid #cbd5df; border-radius: 6px; background: white; }
-        QComboBox QAbstractItemView { padding: 6px; }
-        QTableWidget, QTableView { background: white; border: 1px solid #dbe3ec; gridline-color: #e1e7ed; alternate-background-color: #f8fafc; }
-        QTableWidget::item, QTableView::item { padding: 7px; }
-        QHeaderView::section { min-height: 36px; padding: 6px 8px; font-weight: 700; background: #eef2f6; border: none; }
-        QFormLayout { spacing: 10px; }
-        QGroupBox { margin-top: 12px; padding-top: 14px; font-weight: 700; }
-        QScrollBar:vertical { width: 12px; margin: 2px; }
-        #footerPanel { background: transparent; }
         """
