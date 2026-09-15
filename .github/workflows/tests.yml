@@ -72,18 +72,19 @@ jobs:
           Copy-Item "build_docs/معلومات الإصدار.txt" client-package/
           Copy-Item "build_docs/screens" client-package/صور-الشرح -Recurse
           @"
-          نظام إدارة البقالات
+          Grocery Management System V1.0
 
-          محتويات الحزمة:
-          - GroceryManagementSystem.exe : البرنامج الرئيسي
-          - GroceryLicenseManager.exe : مدير إنشاء التراخيص
-          - دليل استخدام البرنامج.pdf : دليل الاستخدام المصور
-          - تقرير البرنامج.pdf : التقرير المصور
-          - صور-الشرح : لقطات حقيقية من الواجهة الحالية
-          - معلومات الإصدار.txt : معلومات الإصدار والدعم
+          Client package contents:
+          - GroceryManagementSystem.exe - Main application
+          - GroceryLicenseManager.exe - License manager
+          - دليل استخدام البرنامج.pdf - Illustrated user manual
+          - تقرير البرنامج.pdf - Illustrated program report
+          - صور-الشرح - Real interface screenshots
+          - معلومات الإصدار.txt - Version and support information
 
-          تنبيه:
-          مفتاح الإصدار الخاص بالتراخيص يبقى لدى مسؤول التراخيص ولا يُسلّم للعميل.
+          Security notice:
+          The private license signing key must remain with the license administrator.
+          Never distribute the private signing key to customers.
           "@ | Set-Content -Path client-package/README.txt -Encoding UTF8
 
       - name: Upload Windows application
