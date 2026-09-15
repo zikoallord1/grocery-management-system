@@ -1,5 +1,12 @@
+import json
+
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFormLayout, QFrame, QLineEdit, QComboBox, QPushButton, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QComboBox, QFormLayout, QFrame, QLineEdit, QPushButton, QVBoxLayout, QLabel
+
+from backend.app.core.database import DATA_DIR
+
+
+SETTINGS_FILE = DATA_DIR / "settings.json"
 
 
 class SettingsPage(QFrame):
@@ -37,14 +44,42 @@ class SettingsPage(QFrame):
         save.setObjectName("primaryButton")
         save.clicked.connect(self._save)
         layout.addWidget(save, alignment=Qt.AlignRight)
+        self.status = QLabel()
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
         layout.addStretch()
         back = QPushButton("العودة إلى الرئيسية")
         back.setObjectName("secondaryButton")
         back.clicked.connect(self.back_requested.emit)
         layout.addWidget(back, alignment=Qt.AlignLeft)
+        self._load()
+
+    def _load(self):
+        try:
+            if SETTINGS_FILE.exists():
+                data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    self.store_name.setText(str(data.get("store_name", "")))
+                    self.phone.setText(str(data.get("phone", "")))
+                    self.invoice_footer.setText(str(data.get("invoice_footer", "")))
+                    currency = str(data.get("currency", ""))
+                    index = self.currency.findText(currency)
+                    if index >= 0:
+                        self.currency.setCurrentIndex(index)
+        except (OSError, ValueError):
+            pass
 
     def _save(self):
-        self.status = getattr(self, "status", QLabel())
-        self.status.setText("تم حفظ الإعدادات الحالية للجلسة")
-        if self.status.parent() is None:
-            self.layout().addWidget(self.status)
+        data = {
+            "store_name": self.store_name.text().strip(),
+            "currency": self.currency.currentText(),
+            "phone": self.phone.text().strip(),
+            "invoice_footer": self.invoice_footer.text().strip(),
+        }
+        try:
+            SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as exc:
+            self.status.setText(f"تعذر حفظ الإعدادات: {exc}")
+            return
+        self.status.setText("تم حفظ الإعدادات بنجاح على الجهاز.")
