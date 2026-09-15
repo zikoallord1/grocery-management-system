@@ -22,7 +22,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Page
 
 from backend.app.core.database import initialize_database
 from frontend.app.branding import BRANDING
-from frontend.app.ui.font_setup import setup_application_font
+from frontend.app.ui.font_setup import setup_application_font, bundled_font_path
 from frontend.app.ui.main_window import MainWindow
 
 OUT = ROOT / "build_docs"
@@ -31,16 +31,11 @@ DOCS_DIR = ROOT / "docs" / "client"
 
 
 def _register_font() -> str:
-    candidates = [
-        Path("C:/Windows/Fonts/tahoma.ttf"),
-        Path("C:/Windows/Fonts/arial.ttf"),
-        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-    ]
-    for path in candidates:
-        if path.exists():
-            pdfmetrics.registerFont(TTFont("ArabicDoc", str(path)))
-            return "ArabicDoc"
-    return "Helvetica"
+    bundled = bundled_font_path()
+    if not bundled.is_file():
+        raise FileNotFoundError(f"Bundled Arabic font is required: {bundled}")
+    pdfmetrics.registerFont(TTFont("NotoSansArabicDoc", str(bundled)))
+    return "NotoSansArabicDoc"
 
 
 def capture_screenshots() -> list[tuple[str, Path]]:
