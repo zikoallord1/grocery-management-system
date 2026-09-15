@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from backend.app.core.database import get_session
 from backend.app.core.models import Category, Product, ProductBarcode, Unit
+from frontend.app.ui.smart_widgets import SmartComboBox, SmartSearchLineEdit
 
 
 class ProductsPage(QWidget):
@@ -13,14 +14,17 @@ class ProductsPage(QWidget):
         super().__init__(parent)
         self.setLayoutDirection(Qt.RightToLeft)
         self.editing_id = None
-        self.sku = QLineEdit(); self.name = QLineEdit(); self.barcode = QLineEdit()
-        self.category = QComboBox(); self.unit = QComboBox()
+        self.sku = QLineEdit(); self.sku.setPlaceholderText("رمز الصنف"); self.sku.setClearButtonEnabled(True)
+        self.name = QLineEdit(); self.name.setPlaceholderText("اسم الصنف"); self.name.setClearButtonEnabled(True)
+        self.barcode = QLineEdit(); self.barcode.setPlaceholderText("الباركود — يمكن إدخاله من قارئ USB مباشرة"); self.barcode.setClearButtonEnabled(True)
+        self.category = SmartComboBox(); self.unit = SmartComboBox()
+        self.category.configure_smart_input("ابحث عن الفئة..."); self.unit.configure_smart_input("ابحث عن الوحدة...")
         self.purchase_price = QDoubleSpinBox(); self.sale_price = QDoubleSpinBox()
         self.minimum_stock = QDoubleSpinBox(); self.reorder_level = QDoubleSpinBox()
         self.active = QCheckBox("الصنف فعال وقابل للبيع"); self.active.setChecked(True)
         for box in (self.purchase_price, self.sale_price): box.setDecimals(2); box.setMaximum(999999999)
         for box in (self.minimum_stock, self.reorder_level): box.setDecimals(3); box.setMaximum(999999999)
-        self.search = QLineEdit(); self.search.setPlaceholderText("بحث باسم الصنف أو الرمز أو الباركود...")
+        self.search = SmartSearchLineEdit(placeholder="بحث ذكي بالاسم أو الرمز أو الباركود...")
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(["الرمز", "الصنف", "الباركود", "الفئة", "الوحدة", "سعر الشراء", "سعر البيع", "الحالة"])
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -29,7 +33,7 @@ class ProductsPage(QWidget):
     def _build(self):
         root = QVBoxLayout(self); root.setContentsMargins(18, 18, 18, 18); root.setSpacing(12)
         title = QLabel("الأصناف"); title.setObjectName("pageTitle"); root.addWidget(title)
-        desc = QLabel("إضافة الأصناف وكمياتها وأسعارها وبياناتها التابعة. بيانات الصنف تُستخدم مباشرة في المبيعات والمشتريات والمخزون.")
+        desc = QLabel("إضافة الأصناف وكمياتها وأسعارها وبياناتها التابعة. البحث والإدخال الذكي يعملان بالاسم والرمز والباركود لتقليل إعادة الكتابة.")
         desc.setWordWrap(True); desc.setObjectName("pageDescription"); root.addWidget(desc)
         form = QFormLayout(); form.setHorizontalSpacing(18); form.setVerticalSpacing(10)
         for label, field in [("رمز الصنف", self.sku), ("اسم الصنف", self.name), ("الباركود", self.barcode), ("الفئة", self.category), ("الوحدة", self.unit), ("سعر الشراء", self.purchase_price), ("سعر البيع", self.sale_price), ("الحد الأدنى للمخزون", self.minimum_stock), ("نقطة إعادة الطلب", self.reorder_level), ("الحالة", self.active)]: form.addRow(label, field)
@@ -43,12 +47,14 @@ class ProductsPage(QWidget):
         actions.addStretch(); actions.addWidget(back); root.addLayout(actions)
         root.addWidget(self.search); root.addWidget(self.table, 1)
         self.search.textChanged.connect(self.refresh_table); self.table.cellDoubleClicked.connect(self.load_selected)
+        self.barcode.returnPressed.connect(self._barcode_lookup)
 
     def _load_choices(self, session):
         self.category.clear(); self.category.addItem("بدون فئة", None)
         for row in session.scalars(select(Category).where(Category.is_active.is_(True)).order_by(Category.name)).all(): self.category.addItem(row.name, row.id)
         self.unit.clear()
         for row in session.scalars(select(Unit).where(Unit.is_active.is_(True)).order_by(Unit.name)).all(): self.unit.addItem(f"{row.name} ({row.symbol})", row.id)
+        self.category.configure_smart_input("ابحث عن الفئة..."); self.unit.configure_smart_input("ابحث عن الوحدة...")
 
     def refresh(self):
         session = get_session()
@@ -70,6 +76,20 @@ class ProductsPage(QWidget):
             self.table.resizeColumnsToContents()
         finally:
             if owns: session.close()
+
+    def _barcode_lookup(self):
+        barcode_text = self.barcode.text().strip()
+        if not barcode_text: return
+        session = get_session()
+        try:
+            barcode = session.scalar(select(ProductBarcode).where(ProductBarcode.barcode == barcode_text, ProductBarcode.is_active.is_(True)))
+            if barcode:
+                product = session.get(Product, barcode.product_id)
+                if product:
+                    self.editing_id = product.id; self.name.setText(product.name); self.sku.setText(product.sku)
+                    self.category.setCurrentIndex(max(0, self.category.findData(product.category_id))); self.unit.setCurrentIndex(max(0, self.unit.findData(product.default_unit_id)))
+                    self.purchase_price.setValue(float(product.purchase_price or 0)); self.sale_price.setValue(float(product.sale_price or 0)); self.minimum_stock.setValue(float(product.minimum_stock or 0)); self.reorder_level.setValue(float(product.reorder_level or 0)); self.active.setChecked(bool(product.is_active))
+        finally: session.close()
 
     def clear_form(self):
         self.editing_id = None
