@@ -23,10 +23,32 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
+      - name: Install Gradle 8.11.1
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $gradleRoot = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1'
+          $gradleBin = Join-Path $gradleRoot 'bin'
+          if (-not (Test-Path (Join-Path $gradleBin 'gradle.bat'))) {
+            $zip = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1-bin.zip'
+            Invoke-WebRequest -Uri 'https://services.gradle.org/distributions/gradle-8.11.1-bin.zip' -OutFile $zip
+            if (Test-Path $gradleRoot) { Remove-Item $gradleRoot -Recurse -Force }
+            Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
+          }
+          $env:GRADLE_HOME = $gradleRoot
+          $env:PATH = "$gradleBin;$env:PATH"
+          "GRADLE_HOME=$gradleRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PATH=$gradleBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          & (Join-Path $gradleBin 'gradle.bat') --version
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: pwsh
+        run: |
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager --licenses | Out-Null
 
       - name: Verify Android project
         shell: pwsh
@@ -39,12 +61,9 @@ jobs:
       - name: Verify APK exists
         shell: pwsh
         run: |
-          if (-not (Test-Path "app/build/outputs/apk/debug/app-debug.apk")) {
-            throw "APK was not produced"
-          }
-          if ((Get-Item "app/build/outputs/apk/debug/app-debug.apk").Length -le 0) {
-            throw "APK is empty"
-          }
+          if (-not (Test-Path "app/build/outputs/apk/debug/app-debug.apk")) { throw "APK was not produced" }
+          if ((Get-Item "app/build/outputs/apk/debug/app-debug.apk").Length -le 0) { throw "APK is empty" }
+          Write-Host "APK ready: app/build/outputs/apk/debug/app-debug.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -52,5 +71,3 @@ jobs:
           name: Nizam-Al-Baqala-Mobile-APK
           path: mobile/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-# Build on any online self-hosted Windows runner registered to this repository.
