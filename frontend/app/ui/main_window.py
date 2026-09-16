@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
         self._notification_timer = QTimer(self); self._notification_timer.timeout.connect(self._move_notification); self._notification_timer.start(12000)
 
     def _build_ui(self):
-        root = QWidget(); root_layout = QHBoxLayout(root); root_layout.setContentsMargins(18, 16, 18, 14); root_layout.setSpacing(14)
+        root = QWidget(); root.setLayoutDirection(Qt.RightToLeft); root_layout = QHBoxLayout(root); root_layout.setDirection(QHBoxLayout.RightToLeft); root_layout.setContentsMargins(18, 16, 18, 14); root_layout.setSpacing(14)
 
         sidebar = QFrame(); sidebar.setObjectName("sideNavigation"); sidebar.setMinimumWidth(205); sidebar.setMaximumWidth(245)
         side_layout = QVBoxLayout(sidebar); side_layout.setContentsMargins(10, 12, 10, 12); side_layout.setSpacing(6)
