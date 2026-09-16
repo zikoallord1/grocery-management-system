@@ -16,6 +16,7 @@ concurrency:
 jobs:
   build-all:
     runs-on: self-hosted
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,19 +44,11 @@ jobs:
           if (Test-Path dist) { Remove-Item dist -Recurse -Force }
           if (Test-Path build) { Remove-Item build -Recurse -Force }
 
-          py -3.11 -m PyInstaller --noconfirm --clean --onefile --windowed `
-            --collect-all PySide6 `
-            --hidden-import PySide6.QtCore `
-            --hidden-import PySide6.QtGui `
-            --hidden-import PySide6.QtWidgets `
+          py -3.11 -m PyInstaller --noconfirm --onefile --windowed `
             --name GroceryManagementSystem run.py
           if ($LASTEXITCODE -ne 0) { throw "Main PyInstaller build failed: $LASTEXITCODE" }
 
-          py -3.11 -m PyInstaller --noconfirm --clean --onefile --console `
-            --collect-all PySide6 `
-            --hidden-import PySide6.QtCore `
-            --hidden-import PySide6.QtGui `
-            --hidden-import PySide6.QtWidgets `
+          py -3.11 -m PyInstaller --noconfirm --onefile --console `
             --name GroceryLicenseManager license_manager.py
           if ($LASTEXITCODE -ne 0) { throw "License PyInstaller build failed: $LASTEXITCODE" }
 
@@ -75,7 +68,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = (Resolve-Path 'dist/GroceryManagementSystem.exe').Path
           $p = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 12
+          Start-Sleep -Seconds 8
           if ($p.HasExited) {
             throw "Standalone application exited during smoke test. ExitCode=$($p.ExitCode)"
           }
@@ -112,7 +105,7 @@ jobs:
           if (-not (Test-Path $installedExe)) { throw "Installed EXE missing: $installedExe" }
 
           $p = Start-Process -FilePath $installedExe -PassThru
-          Start-Sleep -Seconds 12
+          Start-Sleep -Seconds 8
           if ($p.HasExited) { throw "Installed application exited during smoke test. ExitCode=$($p.ExitCode)" }
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
           Write-Host 'Installer installation + installed EXE smoke test: PASSED'
