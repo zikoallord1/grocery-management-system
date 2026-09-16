@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QFrame, QMessageBox, QPushB
 from backend.app.core.database import initialize_database
 from backend.app.core.daily_operations import DailyMaintenanceController
 from backend.app.core.licensing import verify_license
+from backend.app.mobile_server import start_mobile_server
 from frontend.app.ui.font_setup import setup_application_font, apply_font_to_window
 from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.authenticated_main_window import AuthenticatedMainWindow
@@ -52,6 +53,12 @@ def _show_login(dialog):
 
 def main():
     initialize_database()
+    try:
+        start_mobile_server()
+    except OSError:
+        # Keep desktop startup available if the LAN sync port is already in use.
+        pass
+
     app = QApplication(sys.argv)
     app.setApplicationName("نظام إدارة البقالات")
     app.setLayoutDirection(Qt.RightToLeft)
