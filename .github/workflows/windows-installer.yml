@@ -13,24 +13,25 @@ concurrency:
 
 jobs:
   build-windows-installer:
-    runs-on: self-hosted
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          if (-not (Get-Command py -ErrorAction SilentlyContinue)) { throw 'Python launcher not found on build runner.' }
-          py -3.11 --version
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install application dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          py -3.11 -m pip install --disable-pip-version-check -r backend/requirements.txt
-          py -3.11 -m pip install --disable-pip-version-check 'pyinstaller>=6,<7'
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+          python -m pip install 'pyinstaller>=6,<7'
 
       - name: Build bundled standalone executables
         shell: pwsh
@@ -38,9 +39,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           if (Test-Path dist) { Remove-Item dist -Recurse -Force }
           if (Test-Path build) { Remove-Item build -Recurse -Force }
-          py -3.11 -m PyInstaller --noconfirm --clean --onefile --windowed --name GroceryManagementSystem run.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name GroceryManagementSystem run.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller main app failed with exit code $LASTEXITCODE" }
-          py -3.11 -m PyInstaller --noconfirm --clean --onefile --console --name GroceryLicenseManager license_manager.py
+          python -m PyInstaller --noconfirm --clean --onefile --console --name GroceryLicenseManager license_manager.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller license manager failed with exit code $LASTEXITCODE" }
           if (-not (Test-Path 'dist/GroceryManagementSystem.exe')) { throw 'Main application executable was not produced.' }
           if (-not (Test-Path 'dist/GroceryLicenseManager.exe')) { throw 'License manager executable was not produced.' }
@@ -60,8 +61,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'winget is required to install Inno Setup 7.' }
-          winget install --id JRSoftware.InnoSetup.7 -e --silent --accept-source-agreements --accept-package-agreements
+          if (Get-Command winget -ErrorAction SilentlyContinue) {
+            winget install --id JRSoftware.InnoSetup.7 -e --silent --accept-source-agreements --accept-package-agreements
+          } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
+            choco install innosetup -y --no-progress
+          } else {
+            throw 'No supported Windows package manager was found for Inno Setup.'
+          }
           $candidates = @(
             'C:\Program Files\Inno Setup 7\ISCC.exe',
             'C:\Program Files (x86)\Inno Setup 7\ISCC.exe'
