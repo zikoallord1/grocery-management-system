@@ -7,6 +7,7 @@ pytest.importorskip("PySide6")
 
 
 def test_all_data_entry_pages_construct(qtbot):
+    from backend.app.core.database import initialize_database
     from frontend.app.ui.customers_page import CustomersPage
     from frontend.app.ui.expenses_page import ExpensesPage
     from frontend.app.ui.inventory_page import InventoryPage
@@ -16,6 +17,8 @@ def test_all_data_entry_pages_construct(qtbot):
     from frontend.app.ui.returns_page import ReturnsPage
     from frontend.app.ui.sales_page import SalesPage
     from frontend.app.ui.suppliers_page import SuppliersPage
+
+    initialize_database()
 
     for page_type in (ProductsPage, InventoryPage, SalesPage, PurchasesPage, CustomersPage, SuppliersPage, ExpensesPage, RevenuesPage, ReturnsPage):
         page = page_type()
