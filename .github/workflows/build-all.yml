@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - mobile-android-cameras
+    paths-ignore:
+      - 'mobile/**'
+      - '.github/workflows/mobile-apk.yml'
   workflow_dispatch:
 
 concurrency:
