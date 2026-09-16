@@ -2,12 +2,9 @@ name: Build All Release Artifacts
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - mobile-android-cameras
 
 concurrency:
-  group: grocery-final-build-${{ github.ref }}
+  group: grocery-final-build-manual
   cancel-in-progress: true
 
 jobs:
@@ -16,106 +13,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Verify runner tools
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           py -3.11 --version
           java -version
-
-      - name: Prepare Python dependencies
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          py -3.11 -m pip install --disable-pip-version-check -r backend/requirements.txt
-          py -3.11 -m pip install --disable-pip-version-check 'pyinstaller>=6,<7'
-
-      - name: Build Windows application and installer
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          if (Test-Path dist) { Remove-Item dist -Recurse -Force }
-          if (Test-Path build) { Remove-Item build -Recurse -Force }
-          py -3.11 -m PyInstaller --noconfirm --clean --onefile --windowed --name GroceryManagementSystem run.py
-          py -3.11 -m PyInstaller --noconfirm --clean --onefile --console --name GroceryLicenseManager license_manager.py
-          if (-not (Test-Path 'dist/GroceryManagementSystem.exe')) { throw 'Main Windows executable missing.' }
-          if (-not (Test-Path 'dist/GroceryLicenseManager.exe')) { throw 'License manager executable missing.' }
-
-          $iscc = @(
-            'C:\Program Files\Inno Setup 7\ISCC.exe',
-            'C:\Program Files (x86)\Inno Setup 7\ISCC.exe'
-          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $iscc) {
-            if (Get-Command winget -ErrorAction SilentlyContinue) {
-              winget install --id JRSoftware.InnoSetup.7 -e --silent --accept-source-agreements --accept-package-agreements
-            } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
-              choco install innosetup -y --no-progress
-            }
-            $iscc = @(
-              'C:\Program Files\Inno Setup 7\ISCC.exe',
-              'C:\Program Files (x86)\Inno Setup 7\ISCC.exe'
-            ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-          }
-          if (-not $iscc) { throw 'Inno Setup compiler not available.' }
-          & $iscc 'installer/GroceryManagementSystem.iss'
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
-          $setup = Get-Item 'dist/GroceryManagementSystem-Setup.exe' -ErrorAction Stop
-          if ($setup.Length -lt 10000000) { throw 'Installer is unexpectedly small.' }
-          Write-Host "WINDOWS SETUP: $($setup.Length) bytes"
-
-      - name: Configure Android SDK
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $sdkCandidates = @(
-            "$env:LOCALAPPDATA\Android\Sdk",
-            "$env:USERPROFILE\.android\sdk",
-            "$env:ANDROID_HOME",
-            "$env:ANDROID_SDK_ROOT"
-          ) | Where-Object { $_ -and (Test-Path $_) }
-          if (-not $sdkCandidates) { throw 'Android SDK not found on runner.' }
-          $sdk = $sdkCandidates[0]
-          $sdkManager = Get-ChildItem -Path $sdk -Filter sdkmanager.bat -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $sdkManager) { throw "sdkmanager.bat not found under $sdk" }
-          & $sdkManager.FullName --install 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
-          if ($LASTEXITCODE -ne 0) { throw "sdkmanager failed: $LASTEXITCODE" }
-          $sdkBin = Split-Path $sdkManager.FullName -Parent
-          $env:ANDROID_HOME = $sdk
-          $env:ANDROID_SDK_ROOT = $sdk
-          $env:PATH = "$sdkBin;$sdk\platform-tools;$env:PATH"
-          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "PATH=$sdkBin;$sdk\platform-tools;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Build Android APK
-        shell: pwsh
-        working-directory: mobile
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $gradleRoot = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1'
-          $gradleBin = Join-Path $gradleRoot 'bin'
-          if (-not (Test-Path (Join-Path $gradleBin 'gradle.bat'))) {
-            $zip = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1-bin.zip'
-            Invoke-WebRequest -Uri 'https://services.gradle.org/distributions/gradle-8.11.1-bin.zip' -OutFile $zip
-            Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
-          }
-          & (Join-Path $gradleBin 'gradle.bat') --no-daemon :app:assembleDebug
-          if ($LASTEXITCODE -ne 0) { throw "Gradle build failed: $LASTEXITCODE" }
-          $apk = Get-Item 'app/build/outputs/apk/debug/app-debug.apk' -ErrorAction Stop
-          if ($apk.Length -le 0) { throw 'APK is empty.' }
-          Write-Host "APK: $($apk.Length) bytes"
-
-      - name: Upload Windows Setup
-        uses: actions/upload-artifact@v4
-        with:
-          name: Nizam-Al-Baqala-Windows-Setup
-          path: dist/GroceryManagementSystem-Setup.exe
-          if-no-files-found: error
-
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Nizam-Al-Baqala-Mobile-APK
-          path: mobile/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
