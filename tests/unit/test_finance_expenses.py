@@ -25,17 +25,22 @@ def clean_database():
 
     with engine.begin() as connection:
         tables = set(inspect(engine).get_table_names())
-
-        for table in [
-            "expense_payments",
-            "expenses",
-            "expense_categories",
-            "cashbox_movements",
-            "payment_methods",
-            "cashboxes",
-        ]:
-            if table in tables:
-                connection.exec_driver_sql(f'DELETE FROM "{table}"')
+        if connection.dialect.name == "sqlite":
+            connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        try:
+            for table in [
+                "expense_payments",
+                "expenses",
+                "expense_categories",
+                "cashbox_movements",
+                "payment_methods",
+                "cashboxes",
+            ]:
+                if table in tables:
+                    connection.exec_driver_sql(f'DELETE FROM "{table}"')
+        finally:
+            if connection.dialect.name == "sqlite":
+                connection.exec_driver_sql("PRAGMA foreign_keys=ON")
 
 
 def test_cashbox_and_wallet_are_independent():
