@@ -3,8 +3,7 @@ name: Windows Cloud Build
 on:
   workflow_dispatch:
   push:
-    branches:
-      - mobile-android-cameras
+    branches: [mobile-android-cameras]
     paths-ignore:
       - 'mobile/**'
       - '.github/workflows/mobile-apk.yml'
@@ -15,99 +14,49 @@ concurrency:
 
 jobs:
   build-windows-cloud:
-    runs-on: windows-2025
+    runs-on: windows-2022
     timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Python 3.11
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: backend/requirements.txt
-
-      - name: Install runtime dependencies
+      - name: Build and verify Windows release
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference='Stop'
           python -m pip install --disable-pip-version-check -r backend/requirements.txt
-          python -c "import PySide6, sqlalchemy, cryptography, reportlab; print('Runtime imports OK')"
-          python -m PyInstaller --version
-
-      - name: Build standalone Windows executables
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          python -m PyInstaller --noconfirm --clean --onefile --windowed `
-            --collect-all PySide6 `
-            --hidden-import PySide6.QtCore `
-            --hidden-import PySide6.QtGui `
-            --hidden-import PySide6.QtWidgets `
-            --name GroceryManagementSystem run.py
-          if ($LASTEXITCODE -ne 0) { throw "Main PyInstaller build failed: $LASTEXITCODE" }
-
-          python -m PyInstaller --noconfirm --clean --onefile --console `
-            --collect-all PySide6 `
-            --hidden-import PySide6.QtCore `
-            --hidden-import PySide6.QtGui `
-            --hidden-import PySide6.QtWidgets `
-            --name GroceryLicenseManager license_manager.py
-          if ($LASTEXITCODE -ne 0) { throw "License PyInstaller build failed: $LASTEXITCODE" }
-
-          foreach ($file in @('dist/GroceryManagementSystem.exe','dist/GroceryLicenseManager.exe')) {
-            $item = Get-Item $file -ErrorAction Stop
-            if ($item.Length -lt 10000000) { throw "Executable unexpectedly small: $file ($($item.Length) bytes)" }
+          python -c "import PySide6,sqlalchemy,cryptography,reportlab;print('imports OK')"
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --collect-all PySide6 --hidden-import PySide6.QtCore --hidden-import PySide6.QtGui --hidden-import PySide6.QtWidgets --name GroceryManagementSystem run.py
+          python -m PyInstaller --noconfirm --clean --onefile --console --collect-all PySide6 --hidden-import PySide6.QtCore --hidden-import PySide6.QtGui --hidden-import PySide6.QtWidgets --name GroceryLicenseManager license_manager.py
+          if ((Get-Item 'dist/GroceryManagementSystem.exe').Length -lt 10000000) { throw 'Main EXE too small' }
+          if ((Get-Item 'dist/GroceryLicenseManager.exe').Length -lt 10000000) { throw 'License EXE too small' }
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
           }
-
-      - name: Smoke test standalone executable
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $exe = (Resolve-Path 'dist/GroceryManagementSystem.exe').Path
-          $p = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 10
-          if ($p.HasExited) { throw "Standalone application exited. ExitCode=$($p.ExitCode)" }
-          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          choco install innosetup --yes --no-progress
-          $iscc = Get-ChildItem 'C:\Program Files (x86)\Inno Setup *\ISCC.exe' -ErrorAction Stop | Select-Object -First 1
-          if (-not $iscc) { throw 'Inno Setup compiler not found.' }
-
-      - name: Build real Windows installer
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
           $iscc = Get-ChildItem 'C:\Program Files (x86)\Inno Setup *\ISCC.exe' -ErrorAction Stop | Select-Object -First 1
           & $iscc.FullName 'installer/GroceryManagementSystem.iss'
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
-          $setup = Get-Item 'dist/GroceryManagementSystem-Setup.exe' -ErrorAction Stop
-          if ($setup.Length -lt 10000000) { throw "Installer unexpectedly small: $($setup.Length)" }
-
-      - name: Smoke test installer and installed application
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $testRoot = Join-Path $env:RUNNER_TEMP 'grocery-installer-smoke'
-          if (Test-Path $testRoot) { Remove-Item $testRoot -Recurse -Force }
-          New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
-          $installDir = Join-Path $testRoot 'app'
-          $setup = (Resolve-Path 'dist/GroceryManagementSystem-Setup.exe').Path
-          $installer = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installDir" -PassThru -Wait
-          if ($installer.ExitCode -ne 0) { throw "Installer exited with code $($installer.ExitCode)" }
-          $installedExe = Join-Path $installDir 'GroceryManagementSystem.exe'
-          if (-not (Test-Path $installedExe)) { throw "Installed EXE missing: $installedExe" }
-          $p = Start-Process -FilePath $installedExe -PassThru
-          Start-Sleep -Seconds 10
-          if ($p.HasExited) { throw "Installed application exited. ExitCode=$($p.ExitCode)" }
-          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-
-      - name: Upload Windows cloud release
+          $setup=Get-Item 'dist/GroceryManagementSystem-Setup.exe' -ErrorAction Stop
+          if ($setup.Length -lt 10000000) { throw 'Installer too small' }
+          $testRoot=Join-Path $env:RUNNER_TEMP 'grocery-smoke'
+          $installDir=Join-Path $testRoot 'app'
+          if(Test-Path $testRoot){Remove-Item $testRoot -Recurse -Force}
+          New-Item -ItemType Directory $testRoot -Force | Out-Null
+          $p=Start-Process $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installDir" -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "Installer failed: $($p.ExitCode)"}
+          $exe=Join-Path $installDir 'GroceryManagementSystem.exe'
+          if(-not(Test-Path $exe)){throw 'Installed EXE missing'}
+          $app=Start-Process $exe -PassThru
+          Start-Sleep 10
+          if($app.HasExited){throw "Installed application exited: $($app.ExitCode)"}
+          Stop-Process $app.Id -Force -ErrorAction SilentlyContinue
+      - name: Upload release
         uses: actions/upload-artifact@v4
         with:
           name: Nizam-Al-Baqala-Windows-Cloud-Release
