@@ -13,9 +13,76 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Verify runner tools
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           py -3.11 --version
           java -version
+
+      - name: Install and verify Windows runtime dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          py -3.11 -m pip install --disable-pip-version-check -r backend/requirements.txt
+          py -3.11 -c "import PySide6; print('PySide6:', PySide6.__version__)"
+          py -3.11 -c "import sqlalchemy, cryptography, reportlab; print('Core runtime imports: OK')"
+          py -3.11 -m PyInstaller --version
+
+      - name: Build Windows executables
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path dist) { Remove-Item dist -Recurse -Force }
+          if (Test-Path build) { Remove-Item build -Recurse -Force }
+
+          py -3.11 -m PyInstaller --noconfirm --clean --onefile --windowed `
+            --collect-all PySide6 `
+            --hidden-import PySide6.QtCore `
+            --hidden-import PySide6.QtGui `
+            --hidden-import PySide6.QtWidgets `
+            --name GroceryManagementSystem run.py
+
+          if ($LASTEXITCODE -ne 0) { throw "Main PyInstaller build failed: $LASTEXITCODE" }
+
+          py -3.11 -m PyInstaller --noconfirm --clean --onefile --console `
+            --collect-all PySide6 `
+            --hidden-import PySide6.QtCore `
+            --hidden-import PySide6.QtGui `
+            --hidden-import PySide6.QtWidgets `
+            --name GroceryLicenseManager license_manager.py
+
+          if ($LASTEXITCODE -ne 0) { throw "License PyInstaller build failed: $LASTEXITCODE" }
+
+          if (-not (Test-Path 'dist/GroceryManagementSystem.exe')) { throw 'Main executable missing.' }
+          if (-not (Test-Path 'dist/GroceryLicenseManager.exe')) { throw 'License executable missing.' }
+
+          $main = Get-Item 'dist/GroceryManagementSystem.exe'
+          $license = Get-Item 'dist/GroceryLicenseManager.exe'
+
+          if ($main.Length -lt 10000000) { throw "Main EXE unexpectedly small: $($main.Length)" }
+          if ($license.Length -lt 10000000) { throw "License EXE unexpectedly small: $($license.Length)" }
+
+          Write-Host "MAIN EXE: $($main.Length) bytes"
+          Write-Host "LICENSE EXE: $($license.Length) bytes"
+
+      - name: Build real Windows installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = 'C:\Users\Ziko\AppData\Local\Programs\Inno Setup 7\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw "Inno Setup compiler not found: $iscc" }
+          & $iscc 'installer/GroceryManagementSystem.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
+
+          $setup = Get-Item 'dist/GroceryManagementSystem-Setup.exe' -ErrorAction Stop
+          if ($setup.Length -lt 10000000) { throw "Installer unexpectedly small: $($setup.Length)" }
+          Write-Host "SETUP EXE: $($setup.Length) bytes"
+
+      - name: Upload Windows setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nizam-Al-Baqala-Windows-Setup
+          path: dist/GroceryManagementSystem-Setup.exe
+          if-no-files-found: error
