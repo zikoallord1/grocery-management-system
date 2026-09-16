@@ -1,0 +1,55 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches:
+      - mobile-android-cameras
+      - integration-ui-installer-kiosk
+  workflow_dispatch:
+
+jobs:
+  build-windows-installer:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inspect project
+        shell: pwsh
+        run: |
+          Write-Host "Workspace: $env:GITHUB_WORKSPACE"
+          Get-ChildItem -Force
+
+      - name: Detect package manager
+        shell: pwsh
+        run: |
+          if (Test-Path package.json) { Write-Host "NODE_PROJECT=1" } else { Write-Host "NODE_PROJECT=0" }
+          if (Test-Path frontend/package.json) { Write-Host "FRONTEND_NODE_PROJECT=1" } else { Write-Host "FRONTEND_NODE_PROJECT=0" }
+          if (Test-Path backend/requirements.txt) { Write-Host "PYTHON_BACKEND=1" } else { Write-Host "PYTHON_BACKEND=0" }
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path package.json) {
+            if (Get-Command npm -ErrorAction SilentlyContinue) { npm ci; npm run build }
+          } elseif (Test-Path frontend/package.json) {
+            if (Get-Command npm -ErrorAction SilentlyContinue) { Push-Location frontend; npm ci; npm run build; Pop-Location }
+          }
+          if (Test-Path installer) { Write-Host 'Installer directory found'; Get-ChildItem installer -Recurse }
+          $setup = Get-ChildItem -Path . -Recurse -File -Include *.exe -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'setup|installer|install' } | Select-Object -First 1
+          if ($setup) { Write-Host "SETUP_FOUND=$($setup.FullName)" } else { Write-Host 'No Setup.exe produced by current project yet.' }
+
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path . -Recurse -File -Include *.exe -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'setup|installer|install' } | Select-Object -First 1
+          if (-not $setup) { throw 'A real Windows installer was not produced. Build must not be marked successful.' }
+          if ($setup.Length -le 0) { throw 'Installer is empty.' }
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nizam-Al-Baqala-Windows-Setup
+          path: '**/*setup*.exe'
+          if-no-files-found: error
