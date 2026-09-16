@@ -46,7 +46,6 @@ jobs:
             --hidden-import PySide6.QtGui `
             --hidden-import PySide6.QtWidgets `
             --name GroceryManagementSystem run.py
-
           if ($LASTEXITCODE -ne 0) { throw "Main PyInstaller build failed: $LASTEXITCODE" }
 
           py -3.11 -m PyInstaller --noconfirm --clean --onefile --console `
@@ -55,7 +54,6 @@ jobs:
             --hidden-import PySide6.QtGui `
             --hidden-import PySide6.QtWidgets `
             --name GroceryLicenseManager license_manager.py
-
           if ($LASTEXITCODE -ne 0) { throw "License PyInstaller build failed: $LASTEXITCODE" }
 
           if (-not (Test-Path 'dist/GroceryManagementSystem.exe')) { throw 'Main executable missing.' }
@@ -63,12 +61,23 @@ jobs:
 
           $main = Get-Item 'dist/GroceryManagementSystem.exe'
           $license = Get-Item 'dist/GroceryLicenseManager.exe'
-
           if ($main.Length -lt 10000000) { throw "Main EXE unexpectedly small: $($main.Length)" }
           if ($license.Length -lt 10000000) { throw "License EXE unexpectedly small: $($license.Length)" }
-
           Write-Host "MAIN EXE: $($main.Length) bytes"
           Write-Host "LICENSE EXE: $($license.Length) bytes"
+
+      - name: Smoke test standalone executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path 'dist/GroceryManagementSystem.exe').Path
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 12
+          if ($p.HasExited) {
+            throw "Standalone application exited during smoke test. ExitCode=$($p.ExitCode)"
+          }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Standalone EXE smoke test: PASSED'
 
       - name: Build real Windows installer
         shell: pwsh
@@ -83,9 +92,34 @@ jobs:
           if ($setup.Length -lt 10000000) { throw "Installer unexpectedly small: $($setup.Length)" }
           Write-Host "SETUP EXE: $($setup.Length) bytes"
 
-      - name: Upload Windows setup
+      - name: Smoke test installer and installed application
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $testRoot = Join-Path $env:RUNNER_TEMP 'grocery-installer-smoke'
+          if (Test-Path $testRoot) { Remove-Item $testRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+          $installDir = Join-Path $testRoot 'app'
+          $setup = (Resolve-Path 'dist/GroceryManagementSystem-Setup.exe').Path
+
+          $installer = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$installDir" -PassThru -Wait
+          if ($installer.ExitCode -ne 0) { throw "Installer exited with code $($installer.ExitCode)" }
+
+          $installedExe = Join-Path $installDir 'GroceryManagementSystem.exe'
+          if (-not (Test-Path $installedExe)) { throw "Installed EXE missing: $installedExe" }
+
+          $p = Start-Process -FilePath $installedExe -PassThru
+          Start-Sleep -Seconds 12
+          if ($p.HasExited) { throw "Installed application exited during smoke test. ExitCode=$($p.ExitCode)" }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Installer installation + installed EXE smoke test: PASSED'
+
+      - name: Upload Windows release package
         uses: actions/upload-artifact@v4
         with:
-          name: Nizam-Al-Baqala-Windows-Setup
-          path: dist/GroceryManagementSystem-Setup.exe
+          name: Nizam-Al-Baqala-Windows-Release
+          path: |
+            dist/GroceryManagementSystem-Setup.exe
+            dist/GroceryManagementSystem.exe
+            dist/GroceryLicenseManager.exe
           if-no-files-found: error
