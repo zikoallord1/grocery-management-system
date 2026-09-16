@@ -44,4 +44,4 @@ jobs:
           path: mobile/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-# Rebuild after removing camera monitoring from the mobile app.
+# Final APK rebuild trigger after removing camera monitoring.
