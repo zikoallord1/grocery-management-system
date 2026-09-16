@@ -13,8 +13,12 @@ class AuthenticatedMainWindow(MainWindow):
         self.current_user = user or {}
         super().__init__()
 
-        # Current session controls: user identity + explicit logout.
-        header = self.centralWidget().layout().itemAt(0).widget()
+        root_layout = self.centralWidget().layout()
+        content = root_layout.itemAt(1).widget()
+        content_layout = content.layout()
+
+        # Current session controls belong to the header, not the right navigation.
+        header = content_layout.itemAt(0).widget()
         header.layout().addWidget(QLabel(f"المستخدم: {self.current_user.get('full_name') or self.current_user.get('username', '')}"))
         self.license_button = QPushButton("🔑 الترخيص")
         self.license_button.setObjectName("licenseButton")
@@ -33,7 +37,7 @@ class AuthenticatedMainWindow(MainWindow):
         self._pages["الأصناف"] = page
         self._specs["الأصناف"] = ("الأصناف", "إضافة وتعديل الأصناف والباركود والأسعار والمخزون.", [])
         self.stack.addWidget(page)
-        nav = self.centralWidget().layout().itemAt(1).widget()
+        nav = root_layout.itemAt(0).widget()
         button = QPushButton("الأصناف")
         button.setObjectName("navButton")
         button.clicked.connect(lambda checked=False: self._show_page("الأصناف"))
@@ -62,8 +66,7 @@ class AuthenticatedMainWindow(MainWindow):
             selector.setCompleter(completer)
 
         # Compact footer: credit on the left, live date/time on the other side.
-        root_layout = self.centralWidget().layout()
-        footer = root_layout.itemAt(root_layout.count() - 1).widget()
+        footer = content_layout.itemAt(content_layout.count() - 1).widget()
         footer.setMaximumHeight(36)
         footer_layout = footer.layout()
         if footer_layout is not None:
