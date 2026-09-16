@@ -91,6 +91,22 @@ jobs:
           $shortcut.Description = "نظام البقالة المحاسبي"
           $shortcut.Save()
           Copy-Item "assets\GroceryManagementSystem.ico" "client-package\GroceryManagementSystem.ico"
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --yes --no-progress
+      - name: Build Windows Setup installer
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path installer-output | Out-Null
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\GroceryManagementSystem.iss"
+          if (!(Test-Path "installer-output\GroceryManagementSystem-Setup.exe")) { throw "Setup installer was not created" }
+          $size = (Get-Item "installer-output\GroceryManagementSystem-Setup.exe").Length
+          if ($size -lt 1000000) { throw "Setup installer is unexpectedly small: $size bytes" }
+      - name: Upload Windows Setup installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: GroceryManagementSystem-Setup
+          path: installer-output/GroceryManagementSystem-Setup.exe
       - name: Upload Windows application
         uses: actions/upload-artifact@v4
         with:
