@@ -15,21 +15,20 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from sqlalchemy import select
 
 from backend.app.core.database import get_session
-from backend.app.core.models import Product, ProductBarcode
 from backend.app.modules.reports.service import ReportService
 from frontend.app.branding import BRANDING
-from frontend.app.ui.barcode_scanner import BarcodeScannerWidget
 from frontend.app.ui.cashboxes_page import CashboxesPage
 from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.expenses_page import ExpensesPage
 from frontend.app.ui.inventory_page import InventoryPage
+from frontend.app.ui.products_page import ProductsPage
 from frontend.app.ui.purchases_page import PurchasesPage
 from frontend.app.ui.reports_page import ReportsPage
 from frontend.app.ui.returns_page import ReturnsPage
 from frontend.app.ui.sales_page import SalesPage
+from frontend.app.ui.settings_page import SettingsPage
 from frontend.app.ui.suppliers_page import SuppliersPage
 
 
@@ -107,7 +106,6 @@ class MainWindow(QMainWindow):
         hl = QHBoxLayout(header)
         hl.setContentsMargins(22, 16, 22, 16)
         hl.setSpacing(12)
-
         identity = QVBoxLayout()
         identity.setSpacing(3)
         title = QLabel(BRANDING.program_name)
@@ -118,47 +116,52 @@ class MainWindow(QMainWindow):
         subtitle.setWordWrap(True)
         identity.addWidget(subtitle)
         hl.addLayout(identity, 1)
-
-        self.scanner_toggle = QPushButton("📷 قارئ الباركود")
-        self.scanner_toggle.setObjectName("scannerToggle")
-        self.scanner_toggle.clicked.connect(self._toggle_scanner)
-        hl.addWidget(self.scanner_toggle)
-
         refresh = QPushButton("تحديث البيانات")
         refresh.setObjectName("primaryButton")
         refresh.clicked.connect(self.refresh_dashboard)
         hl.addWidget(refresh)
         root_layout.addWidget(header)
 
-        nav = QFrame()
-        nav.setObjectName("topNavigation")
-        nav_layout = QHBoxLayout(nav)
-        nav_layout.setContentsMargins(6, 6, 6, 6)
-        nav_layout.setSpacing(6)
-
         specs = {
             "الرئيسية": ("الرئيسية", "لوحة المتابعة والعمليات الرئيسية.", []),
             "المبيعات": ("المبيعات", "إنشاء وإدارة فواتير البيع والتحصيل والمرتجعات.", ["فاتورة بيع جديدة", "مرتجع مبيعات", "سجل المبيعات"]),
             "المشتريات": ("المشتريات", "إدارة فواتير الشراء والموردين والمدفوعات.", ["فاتورة شراء جديدة", "مرتجع مشتريات", "سجل المشتريات"]),
-            "المخزون": ("المخزون", "متابعة الأصناف والكميات والحركات وتكلفة المخزون.", ["الأصناف", "حركة المخزون", "جرد المخزون"]),
+            "الأصناف": ("الأصناف", "إضافة وتعديل الأصناف والباركود والأسعار والحد الأدنى للمخزون.", ["إضافة صنف", "تعديل صنف", "بحث عن صنف"]),
+            "المخزون": ("المخزون", "متابعة الكميات والحركات وتكلفة المخزون والجرد.", ["حركة المخزون", "جرد المخزون", "تحويل مخزني"]),
             "العملاء": ("العملاء", "إدارة بيانات العملاء والأرصدة والتحصيلات.", ["عميل جديد", "قبض من عميل", "كشف حساب"]),
             "الموردون": ("الموردون", "إدارة بيانات الموردين والأرصدة والمدفوعات.", ["مورد جديد", "سداد مورد", "كشف حساب"]),
             "المصروفات": ("المصروفات", "تسجيل ومراجعة المصروفات وربطها بوسيلة الدفع.", ["مصروف جديد", "تصنيفات المصروفات", "سجل المصروفات"]),
             "الصناديق والحسابات": ("الصناديق والحسابات", "متابعة النقد والمحفظة والحساب البنكي والتحويلات بين الحسابات.", ["أرصدة الحسابات", "تحويل بين الحسابات", "سجل الحركات"]),
             "المرتجعات": ("المرتجعات والإلغاءات", "إرجاع المبيعات والمشتريات مع عكس المخزون والحركة المالية دون حذف الفاتورة الأصلية.", ["مرتجع مبيعات", "مرتجع مشتريات", "سجل المرتجعات"]),
             "التقارير": ("التقارير", "تقارير تشغيلية ومالية قابلة للتوسع والطباعة والتصدير.", ["ملخص يومي", "الأرباح والخسائر", "أرصدة العملاء والموردين"]),
+            "الإعدادات": ("الإعدادات", "إعدادات البقالة والمستخدمين والصلاحيات وتسجيل النسخة.", ["بيانات البقالة", "المستخدمون والصلاحيات", "تسجيل النسخة"]),
         }
         self._specs = specs
 
+        nav_scroll = QScrollArea()
+        nav_scroll.setObjectName("topNavigationScroll")
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setFrameShape(QFrame.NoFrame)
+        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        nav = QFrame()
+        nav.setObjectName("topNavigation")
+        nav.setMinimumWidth(max(960, len(specs) * 105))
+        nav_layout = QHBoxLayout(nav)
+        nav_layout.setContentsMargins(6, 6, 6, 6)
+        nav_layout.setSpacing(6)
         for label in specs:
             button = QPushButton(label)
             button.setObjectName("navButton")
             button.setProperty("active", label == "الرئيسية")
-            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.setMinimumWidth(94)
+            button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
             button.clicked.connect(lambda checked=False, name=label: self._show_page(name))
             nav_layout.addWidget(button)
             self._nav_buttons[label] = button
-        root_layout.addWidget(nav)
+        nav_layout.addStretch(1)
+        nav_scroll.setWidget(nav)
+        root_layout.addWidget(nav_scroll)
 
         ticker = QFrame()
         ticker.setObjectName("notificationBar")
@@ -171,6 +174,7 @@ class MainWindow(QMainWindow):
         self._notification_label = QLabel()
         self._notification_label.setObjectName("notificationText")
         self._notification_label.setAlignment(Qt.AlignCenter)
+        self._notification_label.setWordWrap(False)
         ticker_layout.addWidget(self._notification_label, 1)
         root_layout.addWidget(ticker)
         self._notification_messages = [
@@ -187,7 +191,6 @@ class MainWindow(QMainWindow):
         self.dashboard = self._dashboard_page()
         self.stack.addWidget(self.dashboard)
         self._pages["الرئيسية"] = self.dashboard
-
         scroll = QScrollArea()
         scroll.setObjectName("contentScroll")
         scroll.setWidgetResizable(True)
@@ -212,19 +215,16 @@ class MainWindow(QMainWindow):
         wa.clicked.connect(lambda: open_url(BRANDING.whatsapp_uri))
         fl.addWidget(wa)
         root_layout.addWidget(footer)
-
         self.setCentralWidget(root)
         self.setStyleSheet(self._stylesheet())
-
-        self.barcode_scanner = BarcodeScannerWidget(root)
-        self.barcode_scanner.barcode_detected.connect(self._handle_barcode)
-        self.barcode_scanner.hide()
 
     def _create_page(self, name):
         if name in self._pages:
             return self._pages[name]
         ptitle, desc, actions = self._specs[name]
-        if name == "المخزون":
+        if name == "الأصناف":
+            page = ProductsPage()
+        elif name == "المخزون":
             page = InventoryPage()
         elif name == "المبيعات":
             page = SalesPage()
@@ -242,6 +242,8 @@ class MainWindow(QMainWindow):
             page = ReturnsPage()
         elif name == "التقارير":
             page = ReportsPage()
+        elif name == "الإعدادات":
+            page = SettingsPage()
         else:
             page = ModulePage(ptitle, desc, actions)
         if hasattr(page, "back_requested"):
@@ -249,54 +251,6 @@ class MainWindow(QMainWindow):
         self._pages[name] = page
         self.stack.addWidget(page)
         return page
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if hasattr(self, "barcode_scanner"):
-            self._position_scanner()
-
-    def _position_scanner(self):
-        margin = 18
-        x = self.centralWidget().width() - self.barcode_scanner.width() - margin
-        y = 210
-        self.barcode_scanner.move(max(margin, x), y)
-        self.barcode_scanner.raise_()
-
-    def _toggle_scanner(self):
-        self._show_page("المبيعات")
-        self.barcode_scanner.toggle()
-        if self.barcode_scanner.isVisible():
-            self._position_scanner()
-
-    def _handle_barcode(self, code):
-        sales_page = self._pages.get("المبيعات")
-        if sales_page is None or self.stack.currentWidget() is not sales_page:
-            return
-        session = get_session()
-        try:
-            product = session.scalar(
-                select(Product)
-                .join(ProductBarcode, ProductBarcode.product_id == Product.id)
-                .where(
-                    Product.is_active.is_(True),
-                    ProductBarcode.is_active.is_(True),
-                    ProductBarcode.barcode == code,
-                )
-            )
-            if product is None:
-                self.barcode_scanner.status.setText("الباركود غير مسجل")
-                return
-            index = sales_page.product.findData(product.id)
-            if index < 0:
-                self.barcode_scanner.status.setText("الصنف غير متاح للبيع")
-                return
-            sales_page.product.setCurrentIndex(index)
-            sales_page.quantity.setValue(1)
-            sales_page.add_line()
-            self.barcode_scanner.status.setText(f"تمت إضافة: {product.name}")
-            sales_page.product.setFocus()
-        finally:
-            session.close()
 
     def _dashboard_page(self):
         page = QWidget()
@@ -320,7 +274,6 @@ class MainWindow(QMainWindow):
             self._cards[key] = card
             cards.addWidget(card, i // 4, i % 4)
         layout.addLayout(cards)
-
         quick = QFrame()
         quick.setObjectName("panel")
         ql = QVBoxLayout(quick)
@@ -335,7 +288,7 @@ class MainWindow(QMainWindow):
         for i, (label, target) in enumerate([
             ("فاتورة بيع جديدة", "المبيعات"),
             ("فاتورة شراء جديدة", "المشتريات"),
-            ("إضافة صنف", "المخزون"),
+            ("إضافة صنف", "الأصناف"),
             ("قبض من عميل", "العملاء"),
             ("سداد مورد", "الموردون"),
             ("تسجيل مصروف", "المصروفات"),
@@ -363,10 +316,6 @@ class MainWindow(QMainWindow):
             button.setProperty("active", label == name)
             button.style().unpolish(button)
             button.style().polish(button)
-        if name == "المبيعات" and self.barcode_scanner.isVisible():
-            self._position_scanner()
-        elif name != "المبيعات":
-            self.barcode_scanner.hide()
 
     def _move_notification(self):
         if not self._notification_messages:
@@ -392,15 +341,11 @@ class MainWindow(QMainWindow):
                 "low": reports.low_stock_count(),
             }
             for key, value in values.items():
-                self._cards[key].value_label.setText(
-                    str(int(value)) if key == "low" else f"{value:,.2f}"
-                )
+                self._cards[key].value_label.setText(str(int(value)) if key == "low" else f"{value:,.2f}")
         finally:
             session.close()
 
     def closeEvent(self, event):
-        if hasattr(self, "barcode_scanner"):
-            self.barcode_scanner.close_camera()
         if hasattr(self, "_notification_timer"):
             self._notification_timer.stop()
         super().closeEvent(event)
@@ -413,6 +358,7 @@ class MainWindow(QMainWindow):
         #header { background: #17324d; border-radius: 12px; }
         #appTitle { color: white; font-size: 25px; font-weight: 700; }
         #appSubtitle { color: #dce8f2; font-size: 13px; }
+        #topNavigationScroll { background: transparent; border: none; }
         #topNavigation { background: white; border: 1px solid #dbe3ec; border-radius: 10px; }
         #navButton { min-height: 42px; padding: 0 12px; border-radius: 7px; background: #17324d; color: white; border: none; }
         #navButton[active="true"] { background: #2d6a9f; font-weight: 700; }
@@ -431,4 +377,5 @@ class MainWindow(QMainWindow):
         #secondaryButton { background: #eef2f6; }
         #actionButton { min-height: 48px; padding: 0 12px; }
         #linkButton { border: none; background: transparent; color: #17324d; }
+        #dangerButton { background: #fff0f0; border-color: #e0a4a4; }
         """
