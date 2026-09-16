@@ -1,7 +1,7 @@
 import json
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QFormLayout, QFrame, QLineEdit, QPushButton, QVBoxLayout, QLabel, QMessageBox, QHBoxLayout
+from PySide6.QtWidgets import QComboBox, QFormLayout, QFrame, QGridLayout, QLineEdit, QPushButton, QVBoxLayout, QLabel, QMessageBox, QHBoxLayout
 
 from backend.app.core.database import DATA_DIR
 from backend.app.core.demo_data import seed_demo_data, prepare_for_delivery
@@ -20,10 +20,10 @@ class SettingsPage(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(16)
-        title = QLabel("إعدادات النظام")
+        title = QLabel("الإعدادات")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
-        desc = QLabel("إدارة بيانات البقالة والإعدادات العامة واختبار النظام قبل التسليم.")
+        desc = QLabel("إدارة بيانات البقالة والإعدادات العامة والمستخدمين والصلاحيات وتسجيل النسخة من مكان واحد.")
         desc.setWordWrap(True)
         desc.setObjectName("pageDescription")
         layout.addWidget(desc)
@@ -42,11 +42,30 @@ class SettingsPage(QFrame):
         form.addRow("رقم الهاتف", self.phone)
         form.addRow("عبارة الفاتورة", self.invoice_footer)
         layout.addLayout(form)
-
         save = QPushButton("حفظ الإعدادات")
         save.setObjectName("primaryButton")
         save.clicked.connect(self._save)
         layout.addWidget(save, alignment=Qt.AlignRight)
+
+        access_title = QLabel("إدارة المستخدمين والصلاحيات والترخيص")
+        access_title.setObjectName("pageTitle")
+        layout.addWidget(access_title)
+        access_grid = QGridLayout()
+        access_grid.setHorizontalSpacing(12)
+        access_grid.setVerticalSpacing(12)
+        users = QPushButton("المستخدمون")
+        users.setObjectName("actionButton")
+        users.clicked.connect(self._open_users)
+        permissions = QPushButton("المستخدمون والصلاحيات")
+        permissions.setObjectName("actionButton")
+        permissions.clicked.connect(self._open_permissions)
+        license_button = QPushButton("تسجيل النسخة / الترخيص")
+        license_button.setObjectName("actionButton")
+        license_button.clicked.connect(self._open_license)
+        access_grid.addWidget(users, 0, 0)
+        access_grid.addWidget(permissions, 0, 1)
+        access_grid.addWidget(license_button, 1, 0, 1, 2)
+        layout.addLayout(access_grid)
 
         test_box = QFrame()
         test_layout = QVBoxLayout(test_box)
@@ -67,7 +86,6 @@ class SettingsPage(QFrame):
         buttons.addWidget(reset)
         test_layout.addLayout(buttons)
         layout.addWidget(test_box)
-
         self.status = QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -77,6 +95,38 @@ class SettingsPage(QFrame):
         back.clicked.connect(self.back_requested.emit)
         layout.addWidget(back, alignment=Qt.AlignLeft)
         self._load()
+
+    def _open_users(self):
+        from frontend.app.ui.users_page import UsersPage
+        page = UsersPage(self)
+        page.setWindowTitle("المستخدمون")
+        page.setMinimumSize(760, 560)
+        page.show()
+        page.raise_()
+        page.activateWindow()
+        self._child_window = page
+
+    def _open_permissions(self):
+        from frontend.app.ui.permissions_page import PermissionsPage
+        page = PermissionsPage(self)
+        page.setWindowTitle("المستخدمون والصلاحيات")
+        page.setMinimumSize(980, 620)
+        page.show()
+        page.raise_()
+        page.activateWindow()
+        self._child_window = page
+
+    def _open_license(self):
+        try:
+            from frontend.app.ui.license_dialog import LicenseDialog
+            dialog = LicenseDialog(self)
+            dialog.setWindowTitle("تسجيل النسخة / الترخيص")
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            self._child_window = dialog
+        except Exception as exc:
+            QMessageBox.critical(self, "الترخيص", f"تعذر فتح شاشة الترخيص.\n\n{exc}")
 
     def _load(self):
         try:
@@ -94,12 +144,7 @@ class SettingsPage(QFrame):
             pass
 
     def _save(self):
-        data = {
-            "store_name": self.store_name.text().strip(),
-            "currency": self.currency.currentText(),
-            "phone": self.phone.text().strip(),
-            "invoice_footer": self.invoice_footer.text().strip(),
-        }
+        data = {"store_name": self.store_name.text().strip(), "currency": self.currency.currentText(), "phone": self.phone.text().strip(), "invoice_footer": self.invoice_footer.text().strip()}
         try:
             SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
             SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -118,13 +163,7 @@ class SettingsPage(QFrame):
             self.status.setText(f"تعذر تعبئة البيانات التجريبية: {exc}")
 
     def _prepare_delivery(self):
-        answer = QMessageBox.question(
-            self,
-            "تأكيد تهيئة النظام",
-            "سيتم حذف بيانات العمل والتجارب من قاعدة البيانات مع الإبقاء على المستخدمين والترخيص وهيكل النظام. هل تريد المتابعة؟",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
+        answer = QMessageBox.question(self, "تأكيد تهيئة النظام", "سيتم حذف بيانات العمل والتجارب من قاعدة البيانات مع الإبقاء على المستخدمين والترخيص وهيكل النظام. هل تريد المتابعة؟", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if answer != QMessageBox.Yes:
             return
         try:
