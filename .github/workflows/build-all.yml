@@ -1,6 +1,9 @@
 name: Build All Release Artifacts
 
 on:
+  push:
+    branches:
+      - mobile-android-cameras
   workflow_dispatch:
 
 concurrency:
