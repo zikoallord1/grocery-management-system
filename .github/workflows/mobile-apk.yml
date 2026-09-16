@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-mobile-apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: mobile
@@ -41,4 +41,4 @@ jobs:
           path: mobile/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-# Fresh runner trigger for final APK verification.
+# Fresh runner verification on Ubuntu 24.04.
