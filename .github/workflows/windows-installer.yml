@@ -7,6 +7,10 @@ on:
       - integration-ui-installer-kiosk
   workflow_dispatch:
 
+concurrency:
+  group: grocery-windows-installer-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows-installer:
     runs-on: self-hosted
