@@ -14,18 +14,19 @@ class AuthenticatedMainWindow(MainWindow):
         super().__init__()
 
         # Current session controls: user identity + explicit logout.
-        header = self.centralWidget().layout().itemAt(0).widget()
-        header.layout().addWidget(QLabel(f"المستخدم: {self.current_user.get('full_name') or self.current_user.get('username', '')}"))
+        header = self.centralWidget().layout().itemAt(1).widget()
+        header_layout = header.layout().itemAt(0).layout()
+        header_layout.addWidget(QLabel(f"المستخدم: {self.current_user.get('full_name') or self.current_user.get('username', '')}"))
         self.license_button = QPushButton("🔑 الترخيص")
         self.license_button.setObjectName("licenseButton")
         self.license_button.clicked.connect(self._open_license_dialog)
-        header.layout().addWidget(self.license_button)
+        header_layout.addWidget(self.license_button)
         self.logout_button = QPushButton("⎋ خروج من المستخدم")
         self.logout_button.setObjectName("logoutButton")
         self.logout_button.clicked.connect(self.logout_requested.emit)
-        header.layout().addWidget(self.logout_button)
+        header_layout.addWidget(self.logout_button)
 
-        # Always expose product management as a first-class navigation item.
+        # Always expose product management as a first-class navigation item in the right sidebar.
         from frontend.app.ui.products_page import ProductsPage
         page = ProductsPage()
         if hasattr(page, "back_requested"):
@@ -33,11 +34,13 @@ class AuthenticatedMainWindow(MainWindow):
         self._pages["الأصناف"] = page
         self._specs["الأصناف"] = ("الأصناف", "إضافة وتعديل الأصناف والباركود والأسعار والمخزون.", [])
         self.stack.addWidget(page)
-        nav = self.centralWidget().layout().itemAt(1).widget()
+        sidebar = self.centralWidget().layout().itemAt(0).widget()
         button = QPushButton("الأصناف")
         button.setObjectName("navButton")
+        button.setProperty("active", False)
+        button.setSizePolicy(self._nav_buttons["الرئيسية"].sizePolicy())
         button.clicked.connect(lambda checked=False: self._show_page("الأصناف"))
-        nav.layout().insertWidget(0, button)
+        sidebar.layout().insertWidget(2, button)
         self._nav_buttons["الأصناف"] = button
 
         # Sales and inventory selectors support direct typing/search by product name.
