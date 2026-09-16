@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-mobile-apk:
-    runs-on: ubuntu-22.04
+    runs-on: windows-2025
     defaults:
       run:
         working-directory: mobile
@@ -29,9 +29,11 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Verify Android project
+        shell: pwsh
         run: gradle --version
 
       - name: Build debug APK
+        shell: pwsh
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload APK
@@ -41,4 +43,4 @@ jobs:
           path: mobile/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-# Runner fallback verification on Ubuntu 22.04.
+# Windows runner fallback verification for APK build.
