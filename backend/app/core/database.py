@@ -43,25 +43,42 @@ def get_session():
 
 
 def _ensure_default_login():
-    """Create the documented first-run administrator when no users file exists."""
+    """Guarantee a usable first-run administrator: admin / admin.
+
+    Existing non-admin users are preserved. The built-in administrator is
+    repaired on every startup so a stale/corrupt installation cannot leave
+    the customer locked out after installing or updating the program.
+    """
     users_file = DATA_DIR / "users.json"
+    default_hash = hashlib.sha256("admin".encode("utf-8")).hexdigest()
+    users = []
+
     if users_file.exists():
         try:
             data = json.loads(users_file.read_text(encoding="utf-8"))
-            if isinstance(data, list) and data:
-                return
+            if isinstance(data, list):
+                users = data
         except (OSError, ValueError):
-            pass
-    password_hash = hashlib.sha256("admin123".encode("utf-8")).hexdigest()
-    payload = [{
-        "id": "admin",
-        "username": "admin",
-        "display_name": "مدير النظام",
-        "role": "admin",
-        "active": True,
-        "password_hash": password_hash,
-    }]
-    users_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            users = []
+
+    admin = next((u for u in users if str(u.get("username", "")).casefold() == "admin"), None)
+    if admin is None:
+        users.insert(0, {
+            "id": "admin",
+            "username": "admin",
+            "display_name": "مدير النظام",
+            "role": "admin",
+            "active": True,
+            "password_hash": default_hash,
+        })
+    else:
+        admin["id"] = admin.get("id") or "admin"
+        admin["display_name"] = admin.get("display_name") or "مدير النظام"
+        admin["role"] = "admin"
+        admin["active"] = True
+        admin["password_hash"] = default_hash
+
+    users_file.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _ensure_default_finance_setup():
