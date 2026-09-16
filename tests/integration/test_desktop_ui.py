@@ -3,10 +3,9 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QScrollArea
 
 from backend.app.core.database import initialize_database
-from frontend.app.ui.barcode_scanner import BarcodeScannerWidget
 from frontend.app.ui.cashboxes_page import CashboxesPage
 from frontend.app.ui.customers_page import CustomersPage
 from frontend.app.ui.expenses_page import ExpensesPage
@@ -30,24 +29,25 @@ def test_main_window_builds_in_offscreen_mode():
     window = MainWindow()
     assert window.windowTitle() == "نظام إدارة البقالات"
     assert window.layoutDirection() == Qt.RightToLeft
-    assert isinstance(window.barcode_scanner, BarcodeScannerWidget)
-    assert window.barcode_scanner.width() == 270
-    assert window.barcode_scanner.height() == 205
+    assert not hasattr(window, "barcode_scanner")
     assert window._notification_label.text()
-    assert window.centralWidget().layout().itemAt(1).widget().objectName() == "topNavigation"
+    navigation_scroll = window.centralWidget().layout().itemAt(1).widget()
+    assert isinstance(navigation_scroll, QScrollArea)
+    assert navigation_scroll.widget().objectName() == "topNavigation"
     assert window.centralWidget().layout().itemAt(2).widget().objectName() == "notificationBar"
 
-    # Business pages are lazy-loaded to keep startup responsive on low-resource PCs.
     for name in [
         "المخزون",
         "المبيعات",
         "المشتريات",
+        "الأصناف",
         "العملاء",
         "الموردون",
         "المصروفات",
         "الصناديق والحسابات",
         "المرتجعات",
         "التقارير",
+        "الإعدادات",
     ]:
         window._create_page(name)
 
@@ -62,6 +62,8 @@ def test_main_window_builds_in_offscreen_mode():
     assert window._pages["المشتريات"].history.columnCount() == 7
     assert window._pages["المشتريات"].product is not None
     assert window._pages["المشتريات"].lines.columnCount() == 5
+    assert isinstance(window._pages["الأصناف"], ProductsPage)
+    assert window._pages["الأصناف"].table.columnCount() == 7
     assert isinstance(window._pages["العملاء"], CustomersPage)
     assert isinstance(window._pages["الموردون"], SuppliersPage)
     assert window._pages["الموردون"].table.columnCount() == 5
@@ -73,15 +75,14 @@ def test_main_window_builds_in_offscreen_mode():
     assert isinstance(window._pages["المرتجعات"], ReturnsPage)
     assert isinstance(window._pages["التقارير"], ReportsPage)
     assert window._pages["التقارير"].table.columnCount() == 2
-
-    # Administration modules are part of the real application entry point.
-    _add_admin_modules(window)
-    assert isinstance(window._pages["المستخدمون"], UsersPage)
-    assert isinstance(window._pages["الصلاحيات"], PermissionsPage)
     assert isinstance(window._pages["الإعدادات"], SettingsPage)
-    for label in ("المستخدمون", "الصلاحيات", "الإعدادات"):
-        assert label in window._nav_buttons
-        assert window._nav_buttons[label].text() == label
+
+    # Administration entry points are intentionally inside Settings, not top-level navigation.
+    _add_admin_modules(window)
+    assert "المستخدمون" not in window._nav_buttons
+    assert "الصلاحيات" not in window._nav_buttons
+    assert "الإعدادات" in window._nav_buttons
+    assert "الإيرادات" in window._nav_buttons
 
     products = ProductsPage()
     assert products.table.columnCount() == 7
