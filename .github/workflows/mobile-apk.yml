@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build-mobile-apk:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: mobile
@@ -26,49 +26,57 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
-      - name: Set up Gradle 8.11.1
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
-
-      - name: Configure Android SDK
-        shell: bash
+      - name: Install Gradle 8.11.1
+        shell: pwsh
         run: |
-          set -euo pipefail
-          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
-          if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
-            echo "Android SDK was not found on the GitHub-hosted runner." >&2
-            exit 1
-          fi
-          if command -v sdkmanager >/dev/null 2>&1; then
-            SDKMANAGER="$(command -v sdkmanager)"
-          elif [ -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
-            SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
-          else
-            SDKMANAGER="$(find "$SDK/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -n 1)"
-          fi
-          if [ -z "${SDKMANAGER:-}" ] || [ ! -x "$SDKMANAGER" ]; then
-            echo "sdkmanager was not found under $SDK" >&2
-            exit 1
-          fi
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          $ErrorActionPreference = 'Stop'
+          $gradleRoot = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1'
+          $gradleBin = Join-Path $gradleRoot 'bin'
+          if (-not (Test-Path (Join-Path $gradleBin 'gradle.bat'))) {
+            $zip = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1-bin.zip'
+            Invoke-WebRequest -Uri 'https://services.gradle.org/distributions/gradle-8.11.1-bin.zip' -OutFile $zip
+            if (Test-Path $gradleRoot) { Remove-Item $gradleRoot -Recurse -Force }
+            Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
+          }
+          "GRADLE_HOME=$gradleRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PATH=$gradleBin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          & (Join-Path $gradleBin 'gradle.bat') --version
+
+      - name: Configure existing Android SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdkCandidates = @(
+            "$env:LOCALAPPDATA\Android\Sdk",
+            "$env:USERPROFILE\.android\sdk",
+            "$env:ANDROID_HOME",
+            "$env:ANDROID_SDK_ROOT"
+          ) | Where-Object { $_ -and (Test-Path $_) }
+          if (-not $sdkCandidates) { throw 'Android SDK was not found on the build runner.' }
+          $sdk = $sdkCandidates[0]
+          $sdkManager = Get-ChildItem -Path $sdk -Filter sdkmanager.bat -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $sdkManager) { throw "sdkmanager.bat was not found under $sdk" }
+          $sdkBin = Split-Path $sdkManager.FullName -Parent
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PATH=$sdkBin;$sdk\platform-tools;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Using Android SDK: $sdk"
+          & $sdkManager.FullName --version
+          & $sdkManager.FullName --install 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
+          if ($LASTEXITCODE -ne 0) { throw "sdkmanager failed with exit code $LASTEXITCODE" }
 
       - name: Build debug APK
-        shell: bash
+        shell: pwsh
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Verify APK exists
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
-          echo "APK ready: $APK ($(stat -c%s "$APK") bytes)"
+          if (-not (Test-Path 'app/build/outputs/apk/debug/app-debug.apk')) { throw 'APK was not produced' }
+          $apk = Get-Item 'app/build/outputs/apk/debug/app-debug.apk'
+          if ($apk.Length -le 0) { throw 'APK is empty' }
+          Write-Host "APK ready: $($apk.FullName) ($($apk.Length) bytes)"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
