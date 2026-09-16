@@ -121,8 +121,6 @@ class PurchasesPage(QWidget):
 
     def _update_total(self):
         total = self._invoice_total()
-        if not self.payment_lines and self.payment.value() == 0 and total > 0:
-            self.payment.setValue(float(total))
         current = Decimal(str(self.payment.value())).quantize(Decimal("0.01"))
         paid = self._payments_total() + current
         self.total.setText(f"{total:,.2f}")
@@ -173,7 +171,7 @@ class PurchasesPage(QWidget):
 
     def add_payment(self):
         method = self.payment_method.currentData(); amount = Decimal(str(self.payment.value())).quantize(Decimal("0.01")); total = self._invoice_total()
-        if not self.lines: QMessageBox.warning(self, "الفاتورة فارغة", "أضف أصناف الفاتورة أولًا."); return
+        if self.lines.rowCount() == 0: QMessageBox.warning(self, "الفاتورة فارغة", "أضف أصناف الفاتورة أولًا."); return
         if not method or amount <= 0: QMessageBox.warning(self, "دفعة غير صحيحة", "اختر وسيلة دفع وأدخل مبلغًا أكبر من صفر."); return
         if self._payments_total() + amount > total: QMessageBox.warning(self, "مبلغ زائد", "مجموع الدفعات لا يمكن أن يتجاوز إجمالي الفاتورة."); return
         self.payment_lines.append({"payment_method": method, "amount": amount}); self.refresh_payments_table(); self.payment.setValue(0)
