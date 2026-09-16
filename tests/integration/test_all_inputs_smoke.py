@@ -47,6 +47,7 @@ def test_product_customer_supplier_expense_and_revenue_inputs(qtbot, monkeypatch
     suffix = uuid4().hex[:10].upper()
 
     product_page = ProductsPage(); qtbot.addWidget(product_page)
+    product_page.sku.setText(f"SKU-{suffix}")
     product_page.name.setText(f"اختبار صنف {suffix}")
     product_page.barcode.setText(f"990{suffix[:10]}")
     product_page.purchase.setValue(10)
