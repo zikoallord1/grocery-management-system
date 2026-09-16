@@ -35,7 +35,7 @@ class LoginDialog(QDialog):
         form.addRow("اسم المستخدم", self.username)
         form.addRow("كلمة المرور", self.password)
         root.addLayout(form)
-        self.status = QLabel("الحساب الافتراضي عند أول تشغيل: admin / admin123")
+        self.status = QLabel("بيانات الدخول الافتراضية: admin / admin")
         self.status.setWordWrap(True)
         root.addWidget(self.status)
         login = QPushButton("دخول")
