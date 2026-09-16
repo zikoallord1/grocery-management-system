@@ -19,8 +19,8 @@ from frontend.app.ui.login_dialog import LoginDialog
 
 def _add_admin_modules(window):
     root_layout = window.centralWidget().layout()
-    nav = root_layout.itemAt(1).widget()
-    nav_layout = nav.layout()
+    sidebar = root_layout.itemAt(0).widget()
+    nav_layout = sidebar.layout()
     modules = [
         ("الإيرادات", RevenuesPage),
         ("المستخدمون", UsersPage),
@@ -40,20 +40,9 @@ def _add_admin_modules(window):
         button.setProperty("active", False)
         button.setSizePolicy(window._nav_buttons["الرئيسية"].sizePolicy())
         button.clicked.connect(lambda checked=False, name=label: window._show_page(name))
-        nav_layout.addWidget(button)
+        nav_layout.insertWidget(max(2, nav_layout.count() - 2), button)
         window._nav_buttons[label] = button
         window._specs[label] = (label, "إدارة الأصناف والإيرادات والمستخدمين والصلاحيات وإعدادات النظام.", [])
-
-
-def _login(app):
-    dialog = LoginDialog()
-    if dialog.exec() != QDialog.DialogCode.Accepted:
-        return None
-    return getattr(dialog, "authenticated_user", None) or dialog.user
-
-
-def _show_login(dialog):
-    return dialog.exec() == QDialog.DialogCode.Accepted
 
 
 def main():
