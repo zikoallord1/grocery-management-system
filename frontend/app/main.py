@@ -9,40 +9,36 @@ from backend.app.core.licensing import verify_license
 from frontend.app.ui.font_setup import setup_application_font, apply_font_to_window
 from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.authenticated_main_window import AuthenticatedMainWindow
-from frontend.app.ui.permissions_page import PermissionsPage
-from frontend.app.ui.products_page import ProductsPage
 from frontend.app.ui.revenues_page import RevenuesPage
-from frontend.app.ui.settings_page import SettingsPage
-from frontend.app.ui.users_page import UsersPage
 from frontend.app.ui.login_dialog import LoginDialog
 
 
 def _add_admin_modules(window):
-    root_layout = window.centralWidget().layout()
-    nav = root_layout.itemAt(1).widget()
-    nav_layout = nav.layout()
-    modules = [
-        ("الإيرادات", RevenuesPage),
-        ("المستخدمون", UsersPage),
-        ("الصلاحيات", PermissionsPage),
-        ("الإعدادات", SettingsPage),
-    ]
-    for label, page_type in modules:
-        if label in window._pages:
-            continue
-        page = page_type()
+    """Add only administration/finance pages that are not already in MainWindow.
+
+    Users, permissions and license registration are intentionally opened from
+    the Settings page rather than becoming separate top-level tabs.
+    """
+    nav = window.findChild(type(window._nav_buttons["الرئيسية"]).__mro__[1], "topNavigation")
+    if nav is None:
+        nav = window.findChild(QPushButton, "topNavigation")
+    nav_layout = nav.layout() if nav is not None else None
+
+    if "الإيرادات" not in window._pages:
+        page = RevenuesPage()
         if hasattr(page, "back_requested"):
             page.back_requested.connect(window._show_dashboard)
-        window._pages[label] = page
+        window._pages["الإيرادات"] = page
         window.stack.addWidget(page)
-        button = QPushButton(label)
-        button.setObjectName("navButton")
-        button.setProperty("active", False)
-        button.setSizePolicy(window._nav_buttons["الرئيسية"].sizePolicy())
-        button.clicked.connect(lambda checked=False, name=label: window._show_page(name))
-        nav_layout.addWidget(button)
-        window._nav_buttons[label] = button
-        window._specs[label] = (label, "إدارة الأصناف والإيرادات والمستخدمين والصلاحيات وإعدادات النظام.", [])
+        if nav_layout is not None:
+            button = QPushButton("الإيرادات")
+            button.setObjectName("navButton")
+            button.setProperty("active", False)
+            button.setMinimumWidth(94)
+            button.clicked.connect(lambda checked=False: window._show_page("الإيرادات"))
+            nav_layout.insertWidget(max(0, nav_layout.count() - 1), button)
+            window._nav_buttons["الإيرادات"] = button
+        window._specs["الإيرادات"] = ("الإيرادات", "إدارة الإيرادات الأخرى والحركات المرتبطة بها.", [])
 
 
 def _login(app):
@@ -87,10 +83,6 @@ def main():
         maintenance.start()
         window.show()
         window._show_page("الرئيسية")
-        window.barcode_scanner.start_camera()
-        window.barcode_scanner.show()
-        window.barcode_scanner.raise_()
-        window.scanner_toggle.setText("📷 قارئ الباركود — الكاميرا جاهزة")
 
         logged_out = {"value": False}
 
