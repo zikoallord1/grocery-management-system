@@ -12,6 +12,7 @@ from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.authenticated_main_window import AuthenticatedMainWindow
 from frontend.app.ui.revenues_page import RevenuesPage
 from frontend.app.ui.login_dialog import LoginDialog
+from frontend.app.ui.first_run_wizard import FirstRunWizard
 
 
 def _add_admin_modules(window):
@@ -53,16 +54,17 @@ def _show_login(dialog):
 
 def main():
     initialize_database()
-    try:
-        start_mobile_server()
-    except OSError:
-        # Keep desktop startup available if the LAN sync port is already in use.
-        pass
 
     app = QApplication(sys.argv)
     app.setApplicationName("نظام إدارة البقالات")
     app.setLayoutDirection(Qt.RightToLeft)
     setup_application_font(app)
+
+    try:
+        start_mobile_server()
+    except OSError:
+        # Keep desktop startup available if the LAN sync port is already in use.
+        pass
 
     license_status = verify_license()
     if not license_status.usable:
@@ -72,6 +74,14 @@ def main():
         dialog.activateWindow()
         QMessageBox.warning(dialog, "البرنامج غير مفعل", f"{license_status.message}\n\nمعرّف التثبيت:\n{license_status.installation_id}")
         return app.exec()
+
+    # Fresh installations stop here once for a clear, guided initialization.
+    # initialize_database() has already created the database and repaired the
+    # guaranteed admin/admin login before this dialog is shown.
+    if not FirstRunWizard.already_completed():
+        wizard = FirstRunWizard()
+        if wizard.exec() != QDialog.DialogCode.Accepted:
+            return 0
 
     while True:
         login = LoginDialog()
