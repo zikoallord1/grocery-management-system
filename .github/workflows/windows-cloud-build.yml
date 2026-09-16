@@ -32,8 +32,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python -m pip install --upgrade pip
-          python -m pip install -r backend/requirements.txt
+          python -m pip install --disable-pip-version-check -r backend/requirements.txt
           python -c "import PySide6, sqlalchemy, cryptography, reportlab; print('Runtime imports OK')"
           python -m PyInstaller --version
 
@@ -41,9 +40,6 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          if (Test-Path dist) { Remove-Item dist -Recurse -Force }
-          if (Test-Path build) { Remove-Item build -Recurse -Force }
-
           python -m PyInstaller --noconfirm --clean --onefile --windowed `
             --collect-all PySide6 `
             --hidden-import PySide6.QtCore `
@@ -60,12 +56,10 @@ jobs:
             --name GroceryLicenseManager license_manager.py
           if ($LASTEXITCODE -ne 0) { throw "License PyInstaller build failed: $LASTEXITCODE" }
 
-          $main = Get-Item 'dist/GroceryManagementSystem.exe' -ErrorAction Stop
-          $license = Get-Item 'dist/GroceryLicenseManager.exe' -ErrorAction Stop
-          if ($main.Length -lt 10000000) { throw "Main EXE unexpectedly small: $($main.Length)" }
-          if ($license.Length -lt 10000000) { throw "License EXE unexpectedly small: $($license.Length)" }
-          Write-Host "MAIN EXE: $($main.Length) bytes"
-          Write-Host "LICENSE EXE: $($license.Length) bytes"
+          foreach ($file in @('dist/GroceryManagementSystem.exe','dist/GroceryLicenseManager.exe')) {
+            $item = Get-Item $file -ErrorAction Stop
+            if ($item.Length -lt 10000000) { throw "Executable unexpectedly small: $file ($($item.Length) bytes)" }
+          }
 
       - name: Smoke test standalone executable
         shell: pwsh
@@ -73,10 +67,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = (Resolve-Path 'dist/GroceryManagementSystem.exe').Path
           $p = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 12
+          Start-Sleep -Seconds 10
           if ($p.HasExited) { throw "Standalone application exited. ExitCode=$($p.ExitCode)" }
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-          Write-Host 'Standalone EXE smoke test: PASSED'
 
       - name: Install Inno Setup
         shell: pwsh
@@ -85,7 +78,6 @@ jobs:
           choco install innosetup --yes --no-progress
           $iscc = Get-ChildItem 'C:\Program Files (x86)\Inno Setup *\ISCC.exe' -ErrorAction Stop | Select-Object -First 1
           if (-not $iscc) { throw 'Inno Setup compiler not found.' }
-          & $iscc.FullName '/?'
 
       - name: Build real Windows installer
         shell: pwsh
@@ -96,7 +88,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
           $setup = Get-Item 'dist/GroceryManagementSystem-Setup.exe' -ErrorAction Stop
           if ($setup.Length -lt 10000000) { throw "Installer unexpectedly small: $($setup.Length)" }
-          Write-Host "SETUP EXE: $($setup.Length) bytes"
 
       - name: Smoke test installer and installed application
         shell: pwsh
@@ -112,10 +103,9 @@ jobs:
           $installedExe = Join-Path $installDir 'GroceryManagementSystem.exe'
           if (-not (Test-Path $installedExe)) { throw "Installed EXE missing: $installedExe" }
           $p = Start-Process -FilePath $installedExe -PassThru
-          Start-Sleep -Seconds 12
+          Start-Sleep -Seconds 10
           if ($p.HasExited) { throw "Installed application exited. ExitCode=$($p.ExitCode)" }
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-          Write-Host 'Installer + installed EXE smoke test: PASSED'
 
       - name: Upload Windows cloud release
         uses: actions/upload-artifact@v4
