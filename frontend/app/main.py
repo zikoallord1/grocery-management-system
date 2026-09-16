@@ -1,7 +1,7 @@
 import sys
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton, QDialog
+from PySide6.QtWidgets import QApplication, QDialog, QFrame, QMessageBox, QPushButton
 
 from backend.app.core.database import initialize_database
 from backend.app.core.daily_operations import DailyMaintenanceController
@@ -19,9 +19,7 @@ def _add_admin_modules(window):
     Users, permissions and license registration are intentionally opened from
     the Settings page rather than becoming separate top-level tabs.
     """
-    nav = window.findChild(type(window._nav_buttons["الرئيسية"]).__mro__[1], "topNavigation")
-    if nav is None:
-        nav = window.findChild(QPushButton, "topNavigation")
+    nav = window.findChild(QFrame, "topNavigation")
     nav_layout = nav.layout() if nav is not None else None
 
     if "الإيرادات" not in window._pages:
