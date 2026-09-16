@@ -25,17 +25,34 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          py -3.11 --version
+          $python = Get-Command python -ErrorAction SilentlyContinue
+          if (-not $python) {
+            $candidates = @(
+              'C:\Users\Ziko\AppData\Local\Programs\Python\Python311\python.exe',
+              'C:\Program Files\Python311\python.exe',
+              'C:\Python311\python.exe'
+            )
+            foreach ($candidate in $candidates) {
+              if (Test-Path $candidate) { $python = Get-Item $candidate; break }
+            }
+          }
+          if (-not $python) { throw 'Python 3.11 was not found on the self-hosted runner.' }
+          $pythonPath = $python.Source
+          if (-not $pythonPath) { $pythonPath = $python.Path }
+          & $pythonPath --version
+          $version = & $pythonPath -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+          if ($version -ne '3.11') { throw "Python 3.11 required, found $version at $pythonPath" }
+          "GROCERY_PYTHON=$pythonPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           java -version
 
       - name: Install and verify Windows runtime dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          py -3.11 -m pip install --disable-pip-version-check -r backend/requirements.txt
-          py -3.11 -c "import PySide6; print('PySide6:', PySide6.__version__)"
-          py -3.11 -c "import sqlalchemy, cryptography, reportlab; print('Core runtime imports: OK')"
-          py -3.11 -m PyInstaller --version
+          & $env:GROCERY_PYTHON -m pip install --disable-pip-version-check -r backend/requirements.txt
+          & $env:GROCERY_PYTHON -c "import PySide6; print('PySide6:', PySide6.__version__)"
+          & $env:GROCERY_PYTHON -c "import sqlalchemy, cryptography, reportlab; print('Core runtime imports: OK')"
+          & $env:GROCERY_PYTHON -m PyInstaller --version
 
       - name: Build Windows executables
         shell: pwsh
@@ -44,11 +61,11 @@ jobs:
           if (Test-Path dist) { Remove-Item dist -Recurse -Force }
           if (Test-Path build) { Remove-Item build -Recurse -Force }
 
-          py -3.11 -m PyInstaller --noconfirm --onefile --windowed `
+          & $env:GROCERY_PYTHON -m PyInstaller --noconfirm --onefile --windowed `
             --name GroceryManagementSystem run.py
           if ($LASTEXITCODE -ne 0) { throw "Main PyInstaller build failed: $LASTEXITCODE" }
 
-          py -3.11 -m PyInstaller --noconfirm --onefile --console `
+          & $env:GROCERY_PYTHON -m PyInstaller --noconfirm --onefile --console `
             --name GroceryLicenseManager license_manager.py
           if ($LASTEXITCODE -ne 0) { throw "License PyInstaller build failed: $LASTEXITCODE" }
 
