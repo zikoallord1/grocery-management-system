@@ -14,42 +14,71 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inspect project
-        shell: pwsh
-        run: |
-          Write-Host "Workspace: $env:GITHUB_WORKSPACE"
-          Get-ChildItem -Force
-
-      - name: Detect package manager
-        shell: pwsh
-        run: |
-          if (Test-Path package.json) { Write-Host "NODE_PROJECT=1" } else { Write-Host "NODE_PROJECT=0" }
-          if (Test-Path frontend/package.json) { Write-Host "FRONTEND_NODE_PROJECT=1" } else { Write-Host "FRONTEND_NODE_PROJECT=0" }
-          if (Test-Path backend/requirements.txt) { Write-Host "PYTHON_BACKEND=1" } else { Write-Host "PYTHON_BACKEND=0" }
-
-      - name: Build Windows installer
+      - name: Set up Python 3.11
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          if (Test-Path package.json) {
-            if (Get-Command npm -ErrorAction SilentlyContinue) { npm ci; npm run build }
-          } elseif (Test-Path frontend/package.json) {
-            if (Get-Command npm -ErrorAction SilentlyContinue) { Push-Location frontend; npm ci; npm run build; Pop-Location }
-          }
-          if (Test-Path installer) { Write-Host 'Installer directory found'; Get-ChildItem installer -Recurse }
-          $setup = Get-ChildItem -Path . -Recurse -File -Include *.exe -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'setup|installer|install' } | Select-Object -First 1
-          if ($setup) { Write-Host "SETUP_FOUND=$($setup.FullName)" } else { Write-Host 'No Setup.exe produced by current project yet.' }
+          if (-not (Get-Command py -ErrorAction SilentlyContinue)) { throw 'Python launcher not found on build runner.' }
+          py -3.11 --version
 
-      - name: Verify installer
+      - name: Install application dependencies
         shell: pwsh
         run: |
-          $setup = Get-ChildItem -Path . -Recurse -File -Include *.exe -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'setup|installer|install' } | Select-Object -First 1
-          if (-not $setup) { throw 'A real Windows installer was not produced. Build must not be marked successful.' }
-          if ($setup.Length -le 0) { throw 'Installer is empty.' }
+          $ErrorActionPreference = 'Stop'
+          py -3.11 -m pip install --disable-pip-version-check -r backend/requirements.txt
+          py -3.11 -m pip install --disable-pip-version-check 'pyinstaller>=6,<7'
+
+      - name: Build bundled application executables
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path dist) { Remove-Item dist -Recurse -Force }
+          if (Test-Path build) { Remove-Item build -Recurse -Force }
+          py -3.11 -m PyInstaller --noconfirm --clean --windowed --name GroceryManagementSystem run.py
+          py -3.11 -m PyInstaller --noconfirm --clean --console --name GroceryLicenseManager license_manager.py
+          if (-not (Test-Path 'dist/GroceryManagementSystem/GroceryManagementSystem.exe')) { throw 'Main application executable was not produced.' }
+          if (-not (Test-Path 'dist/GroceryLicenseManager/GroceryLicenseManager.exe')) { throw 'License manager executable was not produced.' }
+
+      - name: Prepare installer payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Copy-Item 'dist/GroceryManagementSystem/GroceryManagementSystem.exe' 'dist/GroceryManagementSystem.exe' -Force
+          Copy-Item 'dist/GroceryLicenseManager/GroceryLicenseManager.exe' 'dist/GroceryLicenseManager.exe' -Force
+          Get-ChildItem dist -File | Format-Table Name,Length
+
+      - name: Install Inno Setup 7
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'winget is required to install Inno Setup.' }
+          winget install --id JRSoftware.InnoSetup.7 -e --silent --accept-source-agreements --accept-package-agreements
+          $candidates = @(
+            'C:\Program Files\Inno Setup 7\ISCC.exe',
+            'C:\Program Files (x86)\Inno Setup 7\ISCC.exe'
+          ) | Where-Object { Test-Path $_ }
+          if (-not $candidates) { throw 'ISCC.exe was not found after installing Inno Setup.' }
+          "ISCC=$($candidates[0])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Compile real Windows installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path dist/GroceryManagementSystem-Setup.exe) { Remove-Item dist/GroceryManagementSystem-Setup.exe -Force }
+          & $env:ISCC 'installer/GroceryManagementSystem.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+
+      - name: Verify real installer
+        shell: pwsh
+        run: |
+          $setup = Get-Item 'dist/GroceryManagementSystem-Setup.exe' -ErrorAction Stop
+          if ($setup.Length -lt 1000000) { throw "Installer is unexpectedly small: $($setup.Length) bytes" }
+          Write-Host "REAL WINDOWS INSTALLER: $($setup.FullName)"
+          Write-Host "SIZE: $($setup.Length) bytes"
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: Nizam-Al-Baqala-Windows-Setup
-          path: '**/*setup*.exe'
+          path: dist/GroceryManagementSystem-Setup.exe
           if-no-files-found: error
