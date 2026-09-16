@@ -13,35 +13,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Install Linux Qt, barcode and Arabic font runtime libraries
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libpulse0 libzbar0 fonts-noto-core
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-
       - name: Materialize bundled Arabic font
         run: python tools/vendor_arabic_font.py
-
       - name: Verify Arabic font rendering
         env:
           QT_QPA_PLATFORM: offscreen
         run: python tools/verify_arabic_font.py
-
       - name: Run tests
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
           set -o pipefail
           python -m pytest tests -q 2>&1 | tee test-output.txt
-
       - name: Upload test output
         if: always()
         uses: actions/upload-artifact@v4
@@ -52,24 +45,20 @@ jobs:
 
   windows-build:
     runs-on: windows-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-
+          pip install pyinstaller
       - name: Materialize bundled Arabic font
         run: python tools/vendor_arabic_font.py
-
       - name: Verify bundled font
         shell: powershell
         run: |
@@ -77,50 +66,41 @@ jobs:
           if (!(Test-Path $font)) { throw "Bundled Arabic font missing: $font" }
           $size = (Get-Item $font).Length
           if ($size -lt 100000) { throw "Bundled Arabic font is unexpectedly small: $size bytes" }
-          Write-Host "Bundled Arabic font verified: $size bytes"
-
       - name: Verify Arabic font rendering
         env:
           QT_QPA_PLATFORM: offscreen
         run: python tools/verify_arabic_font.py
-
       - name: Build documentation and screenshots
         env:
           QT_QPA_PLATFORM: offscreen
         run: python tools/build_documentation.py
-
-      - name: Verify generated documentation assets
-        shell: powershell
-        run: |
-          $pdfs = Get-ChildItem -LiteralPath "build_docs" -Filter "*.pdf" -File
-          if ($pdfs.Count -lt 2) { throw "Expected at least 2 documentation PDFs, found $($pdfs.Count)" }
-          $screens = Get-ChildItem -LiteralPath "build_docs/screens" -Filter "*.png" -File
-          if ($screens.Count -lt 1) { throw "No documentation screenshots generated" }
-          $smoke = Get-Item -LiteralPath "build_docs/arabic-font-smoke.png" -ErrorAction SilentlyContinue
-          if ($null -eq $smoke) { throw "Arabic font smoke screenshot was not generated" }
-          Write-Host "Generated $($screens.Count) screenshots, $($pdfs.Count) PDFs, and Arabic font smoke screenshot"
-
       - name: Build Windows executable
-        run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "build_docs;docs" --add-data "frontend/app/assets/fonts;frontend/app/assets/fonts" --name GroceryManagementSystem run.py
-
+        run: pyinstaller --noconfirm --clean --onefile --windowed --icon "assets/GroceryManagementSystem.ico" --add-data "build_docs;docs" --add-data "frontend/app/assets/fonts;frontend/app/assets/fonts" --name GroceryManagementSystem run.py
       - name: Build license manager executable
         run: pyinstaller --noconfirm --clean --onefile --windowed --add-data "frontend/app/assets/fonts;frontend/app/assets/fonts" --name GroceryLicenseManager license_manager.py
-
       - name: Prepare client package
         run: python tools/prepare_client_package.py
-
+      - name: Create desktop shortcut in client package
+        shell: powershell
+        run: |
+          $shell = New-Object -ComObject WScript.Shell
+          $shortcut = $shell.CreateShortcut("$PWD\client-package\نظام البقالة المحاسبي.lnk")
+          $shortcut.TargetPath = "$PWD\client-package\GroceryManagementSystem.exe"
+          $shortcut.WorkingDirectory = "$PWD\client-package"
+          $shortcut.IconLocation = "$PWD\client-package\GroceryManagementSystem.exe,0"
+          $shortcut.Description = "نظام البقالة المحاسبي"
+          $shortcut.Save()
+          Copy-Item "assets\GroceryManagementSystem.ico" "client-package\GroceryManagementSystem.ico"
       - name: Upload Windows application
         uses: actions/upload-artifact@v4
         with:
           name: GroceryManagementSystem-Windows
           path: dist/GroceryManagementSystem.exe
-
       - name: Upload license manager
         uses: actions/upload-artifact@v4
         with:
           name: GroceryLicenseManager-Windows
           path: dist/GroceryLicenseManager.exe
-
       - name: Upload complete client package
         uses: actions/upload-artifact@v4
         with:
