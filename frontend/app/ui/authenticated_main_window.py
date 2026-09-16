@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from PySide6.QtCore import QTimer, Signal, Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QCompleter
+from PySide6.QtWidgets import QLabel, QCompleter
 
 from frontend.app.ui.main_window import MainWindow
 
@@ -13,57 +13,48 @@ class AuthenticatedMainWindow(MainWindow):
         self.current_user = user or {}
         super().__init__()
 
-        # Current session controls: user identity + explicit logout.
-        header = self.centralWidget().layout().itemAt(0).widget()
-        header.layout().addWidget(QLabel(f"المستخدم: {self.current_user.get('full_name') or self.current_user.get('username', '')}"))
-        self.license_button = QPushButton("🔑 الترخيص")
-        self.license_button.setObjectName("licenseButton")
-        self.license_button.clicked.connect(self._open_license_dialog)
-        header.layout().addWidget(self.license_button)
-        self.logout_button = QPushButton("⎋ خروج من المستخدم")
-        self.logout_button.setObjectName("logoutButton")
-        self.logout_button.clicked.connect(self.logout_requested.emit)
-        header.layout().addWidget(self.logout_button)
+        header = self.findChild(QLabel, "appTitle")
+        if header is not None:
+            parent_layout = header.parentWidget().parentWidget().layout()
+            parent_layout.addWidget(QLabel(f"المستخدم: {self.current_user.get('full_name') or self.current_user.get('username', '')}"))
+            from PySide6.QtWidgets import QPushButton
+            self.logout_button = QPushButton("⎋ خروج من المستخدم")
+            self.logout_button.setObjectName("logoutButton")
+            self.logout_button.clicked.connect(self.logout_requested.emit)
+            parent_layout.addWidget(self.logout_button)
 
-        # Always expose product management as a first-class navigation item.
-        from frontend.app.ui.products_page import ProductsPage
-        page = ProductsPage()
-        if hasattr(page, "back_requested"):
-            page.back_requested.connect(self._show_dashboard)
-        self._pages["الأصناف"] = page
-        self._specs["الأصناف"] = ("الأصناف", "إضافة وتعديل الأصناف والباركود والأسعار والمخزون.", [])
-        self.stack.addWidget(page)
-        nav = self.centralWidget().layout().itemAt(1).widget()
-        button = QPushButton("الأصناف")
-        button.setObjectName("navButton")
-        button.clicked.connect(lambda checked=False: self._show_page("الأصناف"))
-        nav.layout().insertWidget(0, button)
-        self._nav_buttons["الأصناف"] = button
+        # Products are a first-class top navigation tab immediately after Purchases.
+        nav = self.findChild(QFrame, "topNavigation")
+        if nav is not None and "الأصناف" in self._nav_buttons:
+            nav_layout = nav.layout()
+            product_button = self._nav_buttons["الأصناف"]
+            nav_layout.removeWidget(product_button)
+            purchases_button = self._nav_buttons.get("المشتريات")
+            if purchases_button is not None:
+                index = nav_layout.indexOf(purchases_button)
+                nav_layout.insertWidget(index + 1, product_button)
 
-        # Sales and inventory selectors support direct typing/search by product name.
+        # Product selectors accept normal typing and USB barcode scanners as keyboard input.
         sales_page = self._create_page("المبيعات")
-        for selector in (sales_page.product,):
-            selector.setEditable(True)
-            selector.setInsertPolicy(selector.NoInsert)
-            selector.lineEdit().setPlaceholderText("اكتب اسم الصنف أو اختره من القائمة...")
-            completer = QCompleter(selector.model(), selector)
-            completer.setCaseSensitivity(Qt.CaseInsensitive)
-            completer.setFilterMode(Qt.MatchContains)
-            selector.setCompleter(completer)
+        sales_page.product.setEditable(True)
+        sales_page.product.setInsertPolicy(sales_page.product.NoInsert)
+        sales_page.product.lineEdit().setPlaceholderText("اكتب اسم الصنف أو استخدم قارئ الباركود الخارجي...")
+        completer = QCompleter(sales_page.product.model(), sales_page.product)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        sales_page.product.setCompleter(completer)
 
         inventory_page = self._create_page("المخزون")
         for selector in (inventory_page.product, inventory_page.transfer_product, inventory_page.adjustment_product):
             selector.setEditable(True)
             selector.setInsertPolicy(selector.NoInsert)
             selector.lineEdit().setPlaceholderText("اكتب اسم الصنف أو اختره من القائمة...")
-            completer = QCompleter(selector.model(), selector)
-            completer.setCaseSensitivity(Qt.CaseInsensitive)
-            completer.setFilterMode(Qt.MatchContains)
-            selector.setCompleter(completer)
+            selector_completer = QCompleter(selector.model(), selector)
+            selector_completer.setCaseSensitivity(Qt.CaseInsensitive)
+            selector_completer.setFilterMode(Qt.MatchContains)
+            selector.setCompleter(selector_completer)
 
-        # Compact footer: credit on the left, live date/time on the other side.
-        root_layout = self.centralWidget().layout()
-        footer = root_layout.itemAt(root_layout.count() - 1).widget()
+        footer = self.centralWidget().layout().itemAt(self.centralWidget().layout().count() - 1).widget()
         footer.setMaximumHeight(36)
         footer_layout = footer.layout()
         if footer_layout is not None:
@@ -87,16 +78,6 @@ class AuthenticatedMainWindow(MainWindow):
             self._clock_timer.timeout.connect(self._update_footer_clock)
             self._clock_timer.start(1000)
             self._update_footer_clock()
-
-    def _open_license_dialog(self):
-        from frontend.app.ui.license_dialog import LicenseDialog
-        dialog = LicenseDialog(self)
-        dialog.setAttribute(Qt.WA_DeleteOnClose, True)
-        dialog.setWindowModality(Qt.ApplicationModal)
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
-        self.license_dialog = dialog
 
     def _safe_credit(self):
         from frontend.app.branding import BRANDING
