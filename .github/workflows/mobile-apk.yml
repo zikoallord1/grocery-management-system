@@ -2,3 +2,93 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - mobile-android-cameras
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-apk.yml'
+
+concurrency:
+  group: grocery-android-build
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Android toolchain
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          java -version
+          if ($env:ANDROID_HOME) { Write-Host "ANDROID_HOME=$env:ANDROID_HOME" }
+          elseif ($env:ANDROID_SDK_ROOT) { Write-Host "ANDROID_SDK_ROOT=$env:ANDROID_SDK_ROOT" }
+          else { throw 'Android SDK environment variable not found.' }
+
+      - name: Prepare Android SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdk = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } else { $env:ANDROID_HOME }
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          if (-not (Test-Path $sdkmanager)) {
+            $sdkmanager = Join-Path $sdk 'tools\bin\sdkmanager.bat'
+          }
+          if (Test-Path $sdkmanager) {
+            & $sdkmanager --licenses | Out-Host
+            & $sdkmanager 'platforms;android-36' 'platform-tools' 'build-tools;35.0.0'
+            if ($LASTEXITCODE -ne 0) { throw "Android SDK package preparation failed: $LASTEXITCODE" }
+          } else {
+            Write-Host 'sdkmanager not found; using already-installed SDK packages.'
+          }
+
+      - name: Prepare Gradle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $gradle = Get-Command gradle -ErrorAction SilentlyContinue
+          if ($gradle) {
+            Write-Host "Using installed Gradle: $($gradle.Source)"
+            gradle --version
+            exit 0
+          }
+          $zip = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1-bin.zip'
+          $home = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1'
+          if (-not (Test-Path (Join-Path $home 'bin\gradle.bat'))) {
+            Write-Host 'Gradle 8.11.1 not installed; downloading it once.'
+            Invoke-WebRequest -Uri 'https://services.gradle.org/distributions/gradle-8.11.1-bin.zip' -OutFile $zip -UseBasicParsing
+            if (-not (Test-Path $zip)) { throw 'Gradle archive download failed.' }
+            Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
+          }
+          $gradleHome = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1'
+          "GRADLE_HOME=$gradleHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$gradleHome\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & "$gradleHome\bin\gradle.bat" --version
+
+      - name: Build debug APK
+        shell: pwsh
+        working-directory: mobile
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $gradle = Get-Command gradle -ErrorAction SilentlyContinue
+          if ($gradle) {
+            & $gradle.Source --no-daemon --stacktrace :app:assembleDebug
+          } else {
+            & "$env:GRADLE_HOME\bin\gradle.bat" --no-daemon --stacktrace :app:assembleDebug
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Android build failed: $LASTEXITCODE" }
+          $apk = Resolve-Path 'app\build\outputs\apk\debug\app-debug.apk' -ErrorAction Stop
+          $size = (Get-Item $apk).Length
+          if ($size -lt 100000) { throw "APK unexpectedly small: $size bytes" }
+          Write-Host "APK: $apk ($size bytes)"
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nizam-Al-Baqala-Android-APK
+          path: mobile/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
