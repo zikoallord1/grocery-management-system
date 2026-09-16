@@ -10,7 +10,6 @@ from frontend.app.ui.font_setup import setup_application_font, apply_font_to_win
 from frontend.app.ui.license_dialog import LicenseDialog
 from frontend.app.ui.authenticated_main_window import AuthenticatedMainWindow
 from frontend.app.ui.permissions_page import PermissionsPage
-from frontend.app.ui.products_page import ProductsPage
 from frontend.app.ui.revenues_page import RevenuesPage
 from frontend.app.ui.settings_page import SettingsPage
 from frontend.app.ui.users_page import UsersPage
@@ -19,7 +18,8 @@ from frontend.app.ui.login_dialog import LoginDialog
 
 def _add_admin_modules(window):
     root_layout = window.centralWidget().layout()
-    nav = root_layout.itemAt(1).widget()
+    # MainWindow explicitly places the RTL navigation on the right at index 0.
+    nav = root_layout.itemAt(0).widget()
     nav_layout = nav.layout()
     modules = [
         ("الإيرادات", RevenuesPage),
@@ -87,10 +87,6 @@ def main():
         maintenance.start()
         window.show()
         window._show_page("الرئيسية")
-        window.barcode_scanner.start_camera()
-        window.barcode_scanner.show()
-        window.barcode_scanner.raise_()
-        window.scanner_toggle.setText("📷 قارئ الباركود — الكاميرا جاهزة")
 
         logged_out = {"value": False}
 
