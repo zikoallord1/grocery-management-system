@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from PySide6.QtCore import QTimer, Signal, Qt
-from PySide6.QtWidgets import QLabel, QCompleter
+from PySide6.QtWidgets import QLabel, QCompleter, QFrame, QPushButton
 
 from frontend.app.ui.main_window import MainWindow
 
@@ -13,15 +13,13 @@ class AuthenticatedMainWindow(MainWindow):
         self.current_user = user or {}
         super().__init__()
 
-        header = self.findChild(QLabel, "appTitle")
+        header = self.findChild(QFrame, "header")
         if header is not None:
-            parent_layout = header.parentWidget().parentWidget().layout()
-            parent_layout.addWidget(QLabel(f"المستخدم: {self.current_user.get('full_name') or self.current_user.get('username', '')}"))
-            from PySide6.QtWidgets import QPushButton
+            header.layout().addWidget(QLabel(f"المستخدم: {self.current_user.get('full_name') or self.current_user.get('username', '')}"))
             self.logout_button = QPushButton("⎋ خروج من المستخدم")
             self.logout_button.setObjectName("logoutButton")
             self.logout_button.clicked.connect(self.logout_requested.emit)
-            parent_layout.addWidget(self.logout_button)
+            header.layout().addWidget(self.logout_button)
 
         # Products are a first-class top navigation tab immediately after Purchases.
         nav = self.findChild(QFrame, "topNavigation")
@@ -54,7 +52,8 @@ class AuthenticatedMainWindow(MainWindow):
             selector_completer.setFilterMode(Qt.MatchContains)
             selector.setCompleter(selector_completer)
 
-        footer = self.centralWidget().layout().itemAt(self.centralWidget().layout().count() - 1).widget()
+        root_layout = self.centralWidget().layout()
+        footer = root_layout.itemAt(root_layout.count() - 1).widget()
         footer.setMaximumHeight(36)
         footer_layout = footer.layout()
         if footer_layout is not None:
