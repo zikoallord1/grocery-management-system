@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -22,162 +23,353 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
     private val cameras = mutableListOf<CameraConfig>()
     private val players = mutableListOf<ExoPlayer>()
-    private lateinit var cameraContainer: LinearLayout
+    private lateinit var content: LinearLayout
     private val prefs by lazy { getSharedPreferences("cameras", MODE_PRIVATE) }
+
+    private val blue = Color.rgb(8, 91, 171)
+    private val blueDark = Color.rgb(5, 62, 116)
+    private val bg = Color.rgb(246, 248, 252)
+    private val textDark = Color.rgb(25, 52, 78)
+    private val muted = Color.rgb(102, 116, 132)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = blueDark
+        window.navigationBarColor = Color.rgb(8, 28, 45)
         loadCameras()
-        buildUi()
+        showHome()
     }
 
-    private fun buildUi() {
-        val root = LinearLayout(this).apply {
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun baseRoot(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setBackgroundColor(bg)
+        layoutDirection = View.LAYOUT_DIRECTION_RTL
+        fitsSystemWindows = true
+    }
+
+    private fun makeHeader(title: String, subtitle: String = ""): LinearLayout {
+        val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(244, 247, 251))
-            layoutDirection = LinearLayout.LAYOUT_DIRECTION_RTL
+            setBackgroundColor(blue)
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            gravity = Gravity.CENTER_VERTICAL
         }
-
-        val header = TextView(this).apply {
-            text = "نظام البقالة المحاسبي\nإدارة متجرك من الجوال"
-            textSize = 20f
+        TextView(this).apply {
+            text = title
+            textSize = 22f
             setTextColor(Color.WHITE)
-            setBackgroundColor(Color.rgb(5, 67, 125))
-            setPadding(24, 20, 24, 20)
-            gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
+            gravity = Gravity.RIGHT
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            header.addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
-        root.addView(header, LinearLayout.LayoutParams(-1, 86))
+        if (subtitle.isNotEmpty()) {
+            TextView(this).apply {
+                text = subtitle
+                textSize = 13f
+                setTextColor(Color.rgb(225, 239, 255))
+                gravity = Gravity.RIGHT
+                setPadding(0, dp(3), 0, 0)
+                header.addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+        }
+        return header
+    }
 
-        val ticker = TextView(this).apply {
-            text = "● متصل بالمزامنة    •    المبيعات اليوم 12,450 ريال    •    المخزون 145 صنف    •    تنبيهات المخزون 3"
-            textSize = 13f
-            setTextColor(Color.rgb(0, 91, 170))
-            setBackgroundColor(Color.WHITE)
-            setPadding(16, 10, 16, 10)
-            gravity = Gravity.CENTER
+    private fun makeTicker(): TextView = TextView(this).apply {
+        text = "● حالة المزامنة: جاهز    •    المبيعات اليوم: 12,450 ريال    •    تنبيهات المخزون: 3"
+        textSize = 12f
+        setTextColor(blue)
+        setBackgroundColor(Color.WHITE)
+        gravity = Gravity.CENTER
+        setPadding(dp(10), dp(8), dp(10), dp(8))
+    }
+
+    private fun makeNav(active: String): LinearLayout {
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(blue)
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
-        root.addView(ticker, LinearLayout.LayoutParams(-1, 48))
+        val items = listOf("الرئيسية", "المبيعات", "المخزون", "الكاميرات", "الإعدادات")
+        items.forEach { label ->
+            val button = TextView(this).apply {
+                text = if (label == active) "●  $label" else label
+                textSize = 11f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                setPadding(dp(3), dp(9), dp(3), dp(9))
+                if (label == active) setBackgroundColor(Color.rgb(24, 124, 220))
+                setOnClickListener {
+                    when (label) {
+                        "الرئيسية" -> showHome()
+                        "الكاميرات" -> showCameras()
+                        else -> Toast.makeText(this@MainActivity, "سيتم فتح قسم $label ضمن النسخة المتكاملة", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            nav.addView(button, LinearLayout.LayoutParams(0, dp(58), 1f))
+        }
+        return nav
+    }
+
+    private fun card(title: String, value: String, hint: String): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setBackgroundColor(Color.WHITE)
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        layoutDirection = View.LAYOUT_DIRECTION_RTL
+        TextView(this@MainActivity).apply {
+            text = title
+            textSize = 13f
+            setTextColor(muted)
+            gravity = Gravity.RIGHT
+            addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        TextView(this@MainActivity).apply {
+            text = value
+            textSize = 22f
+            setTextColor(textDark)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.RIGHT
+            setPadding(0, dp(5), 0, dp(2))
+            addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        TextView(this@MainActivity).apply {
+            text = hint
+            textSize = 11f
+            setTextColor(muted)
+            gravity = Gravity.RIGHT
+            addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+    }
+
+    private fun showHome() {
+        releasePlayers()
+        val root = baseRoot()
+        root.addView(makeHeader("نظام البقالة المحاسبي", "إدارة متجرك من الجوال"), LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(makeTicker(), LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val scroll = ScrollView(this)
-        cameraContainer = LinearLayout(this).apply {
+        val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14, 14, 14, 28)
-            layoutDirection = LinearLayout.LAYOUT_DIRECTION_RTL
+            setPadding(dp(14), dp(16), dp(14), dp(18))
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
-        scroll.addView(cameraContainer)
+        TextView(this).apply {
+            text = "لوحة المتابعة"
+            textSize = 22f
+            setTextColor(textDark)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.RIGHT
+            body.addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        TextView(this).apply {
+            text = "مرحبًا بك — اختر القسم الذي تريد إدارته"
+            textSize = 14f
+            setTextColor(muted)
+            gravity = Gravity.RIGHT
+            setPadding(0, dp(5), 0, dp(14))
+            body.addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+
+        val stats = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+        }
+        val s1 = card("مبيعات اليوم", "12,450", "ريال").also { stats.addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
+        val s2 = card("الأصناف", "145", "صنف مسجل").also {
+            val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            lp.setMargins(dp(8), 0, 0, 0)
+            stats.addView(it, lp)
+        }
+        body.addView(stats)
+
+        val cameraCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            val title = TextView(this@MainActivity).apply {
+                text = "كاميرات المراقبة"
+                textSize = 18f
+                setTextColor(textDark)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                gravity = Gravity.RIGHT
+            }
+            addView(title)
+            val info = TextView(this@MainActivity).apply {
+                text = if (cameras.isEmpty()) "لا توجد كاميرات مضافة — يمكنك إضافة كاميرات IP أو DVR/NVR عبر RTSP." else "تمت إضافة ${cameras.size} كاميرا مراقبة."
+                textSize = 13f
+                setTextColor(muted)
+                gravity = Gravity.RIGHT
+                setPadding(0, dp(7), 0, dp(10))
+            }
+            addView(info)
+            val action = TextView(this@MainActivity).apply {
+                text = "فتح كاميرات المراقبة  ›"
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                setBackgroundColor(blue)
+                gravity = Gravity.CENTER
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                setOnClickListener { showCameras() }
+            }
+            addView(action)
+        }
+        val cameraLp = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT)
+        cameraLp.setMargins(0, dp(14), 0, 0)
+        body.addView(cameraCard, cameraLp)
+
+        val shortcuts = listOf("المبيعات", "المشتريات", "المخزون", "التقارير")
+        TextView(this).apply {
+            text = "الوصول السريع"
+            textSize = 18f
+            setTextColor(textDark)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.RIGHT
+            setPadding(0, dp(18), 0, dp(9))
+            body.addView(this)
+        }
+        shortcuts.forEach { label ->
+            TextView(this).apply {
+                text = "  $label"
+                textSize = 15f
+                setTextColor(textDark)
+                setBackgroundColor(Color.WHITE)
+                gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
+                setPadding(dp(16), dp(13), dp(16), dp(13))
+                setOnClickListener { Toast.makeText(this@MainActivity, "سيتم فتح قسم $label ضمن النسخة المتكاملة", Toast.LENGTH_SHORT).show() }
+                val lp = LinearLayout.LayoutParams(-1, dp(50))
+                lp.setMargins(0, 0, 0, dp(7))
+                body.addView(this, lp)
+            }
+        }
+        scroll.addView(body)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(makeNav("الرئيسية"), LinearLayout.LayoutParams(-1, dp(70)))
+        setContentView(root)
+    }
+
+    private fun showCameras() {
+        releasePlayers()
+        val root = baseRoot()
+        root.addView(makeHeader("كاميرات المراقبة", "متابعة البث المباشر من الجوال"), LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(makeTicker(), LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        val scroll = ScrollView(this)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(14), dp(14), dp(18))
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+        }
+        TextView(this).apply {
+            text = "الكاميرات المضافة"
+            textSize = 21f
+            setTextColor(textDark)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.RIGHT
+            container.addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        if (cameras.isEmpty()) {
+            val empty = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(18), dp(55), dp(18), dp(35))
+                TextView(this@MainActivity).apply {
+                    text = "◉"
+                    textSize = 54f
+                    setTextColor(Color.rgb(75, 155, 225))
+                    gravity = Gravity.CENTER
+                    addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+                }
+                TextView(this@MainActivity).apply {
+                    text = "لا توجد كاميرات مضافة بعد"
+                    textSize = 20f
+                    setTextColor(textDark)
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(10), 0, dp(6))
+                    addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+                }
+                TextView(this@MainActivity).apply {
+                    text = "أضف كاميرا IP أو DVR/NVR باستخدام رابط RTSP."
+                    textSize = 13f
+                    setTextColor(muted)
+                    gravity = Gravity.CENTER
+                    addView(this, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+                }
+            }
+            container.addView(empty, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+        } else {
+            cameras.forEach { addCameraCard(it, container) }
+        }
+        scroll.addView(container)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val add = TextView(this).apply {
-            text = "+  إضافة كاميرا مراقبة"
-            textSize = 17f
+            text = "+   إضافة كاميرا جديدة"
+            textSize = 16f
             setTextColor(Color.WHITE)
-            setBackgroundColor(Color.rgb(0, 119, 204))
+            setBackgroundColor(blue)
             gravity = Gravity.CENTER
-            setPadding(10, 16, 10, 16)
+            setPadding(dp(10), dp(13), dp(10), dp(13))
             setOnClickListener { showAddCameraDialog() }
         }
-        root.addView(add, LinearLayout.LayoutParams(-1, 58))
-
-        val nav = TextView(this).apply {
-            text = "الرئيسية     المبيعات     المخزون     التقارير     الكاميرات     الإعدادات"
-            textSize = 12f
-            setTextColor(Color.DKGRAY)
-            setBackgroundColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(4, 12, 4, 12)
-        }
-        root.addView(nav, LinearLayout.LayoutParams(-1, 52))
-
+        root.addView(add, LinearLayout.LayoutParams(-1, dp(56)))
+        root.addView(makeNav("الكاميرات"), LinearLayout.LayoutParams(-1, dp(70)))
         setContentView(root)
-        renderCameras()
     }
 
-    private fun renderCameras() {
-        players.forEach { it.release() }
-        players.clear()
-        cameraContainer.removeAllViews()
-
-        val title = TextView(this).apply {
-            text = "كاميرات المراقبة"
-            textSize = 21f
-            setTextColor(Color.rgb(20, 45, 70))
-            setPadding(4, 4, 4, 14)
-            gravity = Gravity.RIGHT
-        }
-        cameraContainer.addView(title)
-
-        if (cameras.isEmpty()) {
-            val empty = TextView(this).apply {
-                text = "لا توجد كاميرات مضافة بعد\nأضف كاميرا IP أو DVR/NVR باستخدام رابط RTSP."
-                textSize = 16f
-                gravity = Gravity.CENTER
-                setTextColor(Color.GRAY)
-                setPadding(20, 50, 20, 50)
-            }
-            cameraContainer.addView(empty)
-            return
-        }
-
-        cameras.forEach { camera -> addCameraCard(camera) }
-    }
-
-    private fun addCameraCard(camera: CameraConfig) {
+    private fun addCameraCard(camera: CameraConfig, container: LinearLayout) {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.WHITE)
-            setPadding(10, 10, 10, 10)
-            layoutDirection = LinearLayout.LAYOUT_DIRECTION_RTL
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
-        val title = TextView(this).apply {
-            text = "${camera.name}    •    ${camera.location}"
+        TextView(this).apply {
+            text = "${camera.name}  •  ${camera.location}"
             textSize = 16f
-            setTextColor(Color.rgb(0, 70, 125))
-            setPadding(4, 6, 4, 8)
+            setTextColor(blue)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.RIGHT
+            setPadding(dp(4), dp(5), dp(4), dp(8))
+            card.addView(this)
         }
-        card.addView(title)
-
         val playerView = PlayerView(this).apply {
             useController = true
             setBackgroundColor(Color.BLACK)
-            layoutParams = LinearLayout.LayoutParams(-1, 220)
+            layoutParams = LinearLayout.LayoutParams(-1, dp(220))
         }
         card.addView(playerView)
-
         val status = TextView(this).apply {
             text = "● جاري الاتصال بالكاميرا..."
             textSize = 12f
             setTextColor(Color.rgb(220, 130, 0))
-            setPadding(4, 8, 4, 6)
+            gravity = Gravity.RIGHT
+            setPadding(dp(4), dp(8), dp(4), dp(6))
         }
         card.addView(status)
-
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.RIGHT
-        }
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.RIGHT }
         val reconnect = TextView(this).apply {
             text = "إعادة الاتصال"
-            setTextColor(Color.rgb(0, 95, 180))
-            setPadding(18, 8, 18, 8)
+            textSize = 13f
+            setTextColor(blue)
+            setPadding(dp(14), dp(7), dp(14), dp(7))
             setOnClickListener { playCamera(camera, playerView, status) }
         }
         val remove = TextView(this).apply {
             text = "حذف"
+            textSize = 13f
             setTextColor(Color.rgb(190, 45, 45))
-            setPadding(18, 8, 18, 8)
-            setOnClickListener {
-                cameras.remove(camera)
-                saveCameras()
-                renderCameras()
-            }
+            setPadding(dp(14), dp(7), dp(14), dp(7))
+            setOnClickListener { cameras.remove(camera); saveCameras(); showCameras() }
         }
-        actions.addView(remove)
-        actions.addView(reconnect)
-        card.addView(actions)
-
+        actions.addView(remove); actions.addView(reconnect); card.addView(actions)
         val lp = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT)
-        lp.setMargins(0, 0, 0, 18)
-        cameraContainer.addView(card, lp)
+        lp.setMargins(0, 0, 0, dp(14))
+        container.addView(card, lp)
         playCamera(camera, playerView, status)
     }
 
@@ -190,18 +382,9 @@ class MainActivity : AppCompatActivity() {
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
-                    Player.STATE_BUFFERING -> {
-                        status.text = "● جاري تحميل بث ${camera.name}..."
-                        status.setTextColor(Color.rgb(220, 130, 0))
-                    }
-                    Player.STATE_READY -> {
-                        status.text = "● الكاميرا متصلة ومباشرة"
-                        status.setTextColor(Color.rgb(0, 150, 75))
-                    }
-                    Player.STATE_ENDED -> {
-                        status.text = "● انتهى البث"
-                        status.setTextColor(Color.GRAY)
-                    }
+                    Player.STATE_BUFFERING -> { status.text = "● جاري تحميل بث ${camera.name}..."; status.setTextColor(Color.rgb(220, 130, 0)) }
+                    Player.STATE_READY -> { status.text = "● الكاميرا متصلة ومباشرة"; status.setTextColor(Color.rgb(0, 150, 75)) }
+                    Player.STATE_ENDED -> { status.text = "● انتهى البث"; status.setTextColor(Color.GRAY) }
                 }
             }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -214,38 +397,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAddCameraDialog() {
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(36, 10, 36, 0)
-        }
-        val name = EditText(this).apply { hint = "اسم الكاميرا" }
-        val location = EditText(this).apply { hint = "الموقع - مثال: باب المحل" }
-        val url = EditText(this).apply {
-            hint = "رابط RTSP - مثال: rtsp://user:password@192.168.1.20:554/stream"
-            setSingleLine(false)
-        }
-        box.addView(name)
-        box.addView(location)
-        box.addView(url)
-
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(28), dp(6), dp(28), 0) }
+        val name = EditText(this).apply { hint = "اسم الكاميرا"; setSingleLine(true) }
+        val location = EditText(this).apply { hint = "الموقع - مثال: باب المحل"; setSingleLine(true) }
+        val url = EditText(this).apply { hint = "رابط RTSP"; setSingleLine(false) }
+        box.addView(name); box.addView(location); box.addView(url)
         AlertDialog.Builder(this)
             .setTitle("إضافة كاميرا مراقبة")
-            .setMessage("يدعم التطبيق بث كاميرات IP وDVR/NVR عبر RTSP. لا ترسل بيانات الدخول لأي شخص.")
+            .setMessage("يدعم التطبيق بث كاميرات IP وDVR/NVR عبر RTSP.")
             .setView(box)
             .setNegativeButton("إلغاء", null)
             .setPositiveButton("حفظ واتصال") { _, _ ->
-                val n = name.text.toString().trim()
-                val l = location.text.toString().trim().ifEmpty { "المحل" }
-                val u = url.text.toString().trim()
-                if (n.isEmpty() || u.isEmpty()) {
-                    Toast.makeText(this, "أدخل اسم الكاميرا ورابط RTSP", Toast.LENGTH_LONG).show()
-                } else {
-                    cameras.add(CameraConfig(n, l, u))
-                    saveCameras()
-                    renderCameras()
-                }
-            }
-            .show()
+                val n = name.text.toString().trim(); val l = location.text.toString().trim().ifEmpty { "المحل" }; val u = url.text.toString().trim()
+                if (n.isEmpty() || u.isEmpty()) Toast.makeText(this, "أدخل اسم الكاميرا ورابط RTSP", Toast.LENGTH_LONG).show()
+                else { cameras.add(CameraConfig(n, l, u)); saveCameras(); showCameras() }
+            }.show()
     }
 
     private fun loadCameras() {
@@ -260,19 +426,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveCameras() {
         val array = JSONArray()
-        cameras.forEach {
-            array.put(JSONObject().apply {
-                put("name", it.name)
-                put("location", it.location)
-                put("url", it.rtspUrl)
-            })
-        }
+        cameras.forEach { array.put(JSONObject().apply { put("name", it.name); put("location", it.location); put("url", it.rtspUrl) }) }
         prefs.edit().putString("items", array.toString()).apply()
     }
 
-    override fun onDestroy() {
+    private fun releasePlayers() {
         players.forEach { it.release() }
         players.clear()
+    }
+
+    override fun onDestroy() {
+        releasePlayers()
         super.onDestroy()
     }
 }
