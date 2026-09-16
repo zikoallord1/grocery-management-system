@@ -1,4 +1,140 @@
-name: Build Windows Installer
+name: Windows Cloud Release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - mobile-android-cameras
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'run.py'
+      - 'license_manager.py'
+      - 'installer/**'
+      - '.github/workflows/windows-installer.yml'
+      - 'requirements.txt'
+      - 'backend/requirements.txt'
+
+concurrency:
+  group: grocery-windows-cloud-release
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python --version
+          python -m pip install --upgrade pip
+          if (Test-Path 'backend/requirements.txt') {
+            python -m pip install -r backend/requirements.txt
+          } elseif (Test-Path 'requirements.txt') {
+            python -m pip install -r requirements.txt
+          }
+          python -m pip install pyinstaller
+          python -c "import PySide6; print('PySide6:', PySide6.__version__)"
+          python -c "import sqlalchemy, cryptography, reportlab; print('Core imports: OK')"
+
+      - name: Build standalone executables
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path dist) { Remove-Item dist -Recurse -Force }
+          if (Test-Path build) { Remove-Item build -Recurse -Force }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed `
+            --collect-all PySide6 `
+            --hidden-import PySide6.QtCore `
+            --hidden-import PySide6.QtGui `
+            --hidden-import PySide6.QtWidgets `
+            --name GroceryManagementSystem run.py
+          if ($LASTEXITCODE -ne 0) { throw "Main build failed: $LASTEXITCODE" }
+          python -m PyInstaller --noconfirm --clean --onefile --console `
+            --collect-all PySide6 `
+            --hidden-import PySide6.QtCore `
+            --hidden-import PySide6.QtGui `
+            --hidden-import PySide6.QtWidgets `
+            --name GroceryLicenseManager license_manager.py
+          if ($LASTEXITCODE -ne 0) { throw "License build failed: $LASTEXITCODE" }
+          foreach ($file in @('dist/GroceryManagementSystem.exe','dist/GroceryLicenseManager.exe')) {
+            if (-not (Test-Path $file)) { throw "Missing $file" }
+            $item = Get-Item $file
+            if ($item.Length -lt 10000000) { throw "$file is unexpectedly small: $($item.Length)" }
+            Write-Host "$file = $($item.Length) bytes"
+          }
+
+      - name: Smoke test standalone executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $p = Start-Process -FilePath (Resolve-Path 'dist/GroceryManagementSystem.exe') -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) { throw "Standalone EXE exited. ExitCode=$($p.ExitCode)" }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Standalone EXE smoke test: PASSED'
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install innosetup -y --no-progress
+          $candidates = @(
+            'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+            'C:\Program Files\Inno Setup 7\ISCC.exe',
+            'C:\Program Files (x86)\Inno Setup 7\ISCC.exe'
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw 'ISCC.exe not found after installation.' }
+          "ISCC_PATH=$iscc" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          & $iscc '/?'
+
+      - name: Build real installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path $env:ISCC_PATH)) { throw 'Inno Setup compiler path is unavailable.' }
+          & $env:ISCC_PATH 'installer/GroceryManagementSystem.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
+          $setup = Get-Item 'dist/GroceryManagementSystem-Setup.exe' -ErrorAction Stop
+          if ($setup.Length -lt 10000000) { throw "Installer unexpectedly small: $($setup.Length)" }
+          Write-Host "SETUP EXE = $($setup.Length) bytes"
+
+      - name: Smoke test installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $testRoot = Join-Path $env:RUNNER_TEMP 'grocery-installer-smoke'
+          if (Test-Path $testRoot) { Remove-Item $testRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+          $installDir = Join-Path $testRoot 'app'
+          $setup = (Resolve-Path 'dist/GroceryManagementSystem-Setup.exe').Path
+          $p = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installDir" -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Installer exit code: $($p.ExitCode)" }
+          $installed = Join-Path $installDir 'GroceryManagementSystem.exe'
+          if (-not (Test-Path $installed)) { throw "Installed EXE missing: $installed" }
+          $app = Start-Process -FilePath $installed -PassThru
+          Start-Sleep -Seconds 10
+          if ($app.HasExited) { throw "Installed application exited. ExitCode=$($app.ExitCode)" }
+          Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Installer + installed application smoke test: PASSED'
+
+      - name: Upload Windows release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nizam-Al-Baqala-Windows-Cloud-Release
+          path: |
+            dist/GroceryManagementSystem-Setup.exe
+            dist/GroceryManagementSystem.exe
+            dist/GroceryLicenseManager.exe
+          if-no-files-found: error
