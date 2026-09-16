@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-mobile-apk:
-    runs-on: [self-hosted, windows, x64, grocery-build]
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: mobile
@@ -53,4 +53,4 @@ jobs:
           path: mobile/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-# Build on the customer's configured self-hosted Windows runner.
+# Build on any online self-hosted Windows runner registered to this repository.
