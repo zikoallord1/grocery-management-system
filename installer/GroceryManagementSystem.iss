@@ -21,7 +21,7 @@ SetupIconFile=..\assets\GroceryManagementSystem.ico
 UninstallDisplayIcon={app}\GroceryManagementSystem.exe
 
 [Files]
-Source: "..\GroceryManagementSystem.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\GroceryManagementSystem.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\GroceryLicenseManager.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\assets\GroceryManagementSystem.ico"; DestDir: "{app}"; Flags: ignoreversion
 
