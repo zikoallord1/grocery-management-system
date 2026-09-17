@@ -422,6 +422,19 @@ class MainWindow(QMainWindow):
         #primaryButton:hover { background: #006be0; }
         #secondaryButton { background: #edf6ff; color: #07539d; }
         #actionButton { min-height: 46px; background: #ffffff; border: 1px solid #c5ddf5; color: #07539d; }
+        #referenceToolbar { background: #ffffff; border: 1px solid #cfe1f3; border-radius: 10px; }
+        #referencePanel { background: #ffffff; border: 1px solid #cfe1f3; border-radius: 10px; }
+        #referencePanelTitle { color: #064b91; font-size: 15px; font-weight: 900; padding-bottom: 4px; border-bottom: 2px solid #eaf5ff; }
+        #sideActionButton { min-height: 40px; background: #f7fbff; border: 1px solid #d5e7f8; color: #07539d; text-align: right; }
+        #sideActionButton:hover { background: #eaf5ff; border-color: #76b7ee; }
+        #totalsPanel { background: #eef7ff; border: 1px solid #c5ddf5; border-radius: 8px; }
+        #totalsPanel QLabel { color: #064b91; font-weight: 900; }
+        #totalsPanel QLabel#cardValue { font-size: 18px; }
+        #paymentPanel { background: #f7fbff; border: 1px solid #d5e7f8; border-radius: 8px; }
+        #miniLabel { color: #6c8196; font-size: 11px; font-weight: 800; }
+        #pageStack { background: transparent; }
+        #contentScroll { padding: 0; }
+        #referencePanel QTableWidget, #referencePanel QTableView { min-height: 180px; }
         #actionButton:hover { background: #eaf5ff; border-color: #72b4ec; }
         #footerPanel { min-height: 40px; max-height: 44px; background: #003f7d; border-radius: 9px; }
         #footerPanel QLabel { color: #dcecff; font-size: 11px; }
