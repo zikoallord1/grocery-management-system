@@ -6,40 +6,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Find package.json
-        run: |
-          echo "=== where is package.json? ==="
-          find . -name "package.json" -type f | head -20
-          echo "=== frontend folder ==="
-          ls -la frontend/ | head -30
-          echo "=== mobile folder ==="
-          ls -la mobile/ | head -30
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - name: Build wherever it is
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Verify Android project
+        shell: bash
         run: |
-          PKG=$(find . -name "package.json" -type f | head -1)
-          echo "Found: $PKG"
-          DIR=$(dirname "$PKG")
-          cd "$DIR"
-          npm install
-          npm run build || echo "no build"
-          if [ -f "capacitor.config.ts" ] || [ -f "capacitor.config.json" ]; then
-            npx cap sync android
-          fi
+          test -f mobile/settings.gradle.kts
+          test -f mobile/build.gradle.kts
+          test -f mobile/app/build.gradle.kts
+          test -f mobile/app/src/main/AndroidManifest.xml
+          echo "Android project structure OK"
+
       - name: Build APK
+        shell: bash
+        working-directory: mobile
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK
+        shell: bash
         run: |
-          APK_GRADLE=$(find . -name "gradlew" -type f | head -1)
-          echo "Gradle at: $APK_GRADLE"
-          cd $(dirname "$APK_GRADLE")
-          chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon
+          test -f mobile/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh mobile/app/build/outputs/apk/debug/app-debug.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: Nizam-APK
-          path: "**/app-debug.apk"
+          path: mobile/app/build/outputs/apk/debug/app-debug.apk
