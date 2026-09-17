@@ -35,7 +35,7 @@ class AuthenticatedMainWindow(MainWindow):
         # Product selectors accept normal typing and USB barcode scanners as keyboard input.
         sales_page = self._create_page("المبيعات")
         sales_page.product.setEditable(True)
-        sales_page.product.setInsertPolicy(sales_page.product.NoInsert)
+        sales_page.product.setInsertPolicy(QComboBox.InsertPolicy.InsertPolicy.NoInsert)
         sales_page.product.lineEdit().setPlaceholderText("اكتب اسم الصنف أو استخدم قارئ الباركود الخارجي...")
         completer = QCompleter(sales_page.product.model(), sales_page.product)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
@@ -45,7 +45,7 @@ class AuthenticatedMainWindow(MainWindow):
         inventory_page = self._create_page("المخزون")
         for selector in (inventory_page.product, inventory_page.transfer_product, inventory_page.adjustment_product):
             selector.setEditable(True)
-            selector.setInsertPolicy(selector.NoInsert)
+            selector.setInsertPolicy(selector.InsertPolicy.NoInsert)
             selector.lineEdit().setPlaceholderText("اكتب اسم الصنف أو اختره من القائمة...")
             selector_completer = QCompleter(selector.model(), selector)
             selector_completer.setCaseSensitivity(Qt.CaseInsensitive)
