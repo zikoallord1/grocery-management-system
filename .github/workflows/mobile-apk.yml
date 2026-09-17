@@ -13,17 +13,26 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install and Build Web
+      - name: Build
         run: |
-          npm install
-          npm run build
-          npx cap sync android
+          ls -la
+          if [ -f package.json ]; then
+            npm install && npm run build && npx cap sync android
+          elif [ -f frontend/package.json ]; then
+            cd frontend && npm install && npm run build && npx cap sync android && cd ..
+          elif [ -f mobile/package.json ]; then
+            cd mobile && npm install && npm run build && npx cap sync android && cd ..
+          else
+            echo "No package.json found in root/frontend/mobile"
+            find . -maxdepth 3 -name package.json
+            exit 1
+          fi
       - name: Build APK
-        working-directory: android
         run: |
+          if [ -d android ]; then cd android; elif [ -d frontend/android ]; then cd frontend/android; elif [ -d mobile/android ]; then cd mobile/android; fi
           chmod +x gradlew
           ./gradlew :app:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: Nizam-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: "**/app-debug.apk"
