@@ -16,24 +16,69 @@ concurrency:
 jobs:
   build-all:
     runs-on: self-hosted
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify runner tools
+      - name: Prepare Python 3.11
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
           if (-not $pythonCmd) { $pythonCmd = Get-Command py -ErrorAction SilentlyContinue }
-          if (-not $pythonCmd) { throw 'Python launcher was not found on the self-hosted runner.' }
-          $pythonPath = $pythonCmd.Source
-          if (-not $pythonPath) { $pythonPath = $pythonCmd.Path }
-          $version = & $pythonPath -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-          if ($version -ne '3.11') { throw "Python 3.11 required, found $version at $pythonPath" }
-          & $pythonPath --version
-          "GROCERY_PYTHON=$pythonPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          if ($pythonCmd) {
+            $candidate = $pythonCmd.Source
+            if (-not $candidate) { $candidate = $pythonCmd.Path }
+            try {
+              $v = & $candidate -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+              if ($v -eq '3.11') {
+                & $candidate --version
+                "GROCERY_PYTHON=$candidate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                exit 0
+              }
+            } catch {}
+          }
+
+          $portableRoot = Join-Path $env:RUNNER_TEMP 'python311'
+          $zipPath = Join-Path $env:RUNNER_TEMP 'python311-embed.zip'
+          if (-not (Test-Path (Join-Path $portableRoot 'python.exe'))) {
+            if (Test-Path $portableRoot) { Remove-Item $portableRoot -Recurse -Force }
+            New-Item -ItemType Directory -Path $portableRoot -Force | Out-Null
+            Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip' -OutFile $zipPath
+            Expand-Archive -Path $zipPath -DestinationPath $portableRoot -Force
+          }
+
+          $pth = Get-ChildItem $portableRoot -Filter 'python311._pth' -File | Select-Object -First 1
+          if (-not $pth) { throw 'Portable Python _pth file was not found.' }
+          $pthText = Get-Content $pth.FullName -Raw
+          if ($pthText -notmatch '(?m)^import site\s*$') {
+            Add-Content -Path $pth.FullName -Value "`r`nimport site`r`n"
+          }
+
+          $portablePython = Join-Path $portableRoot 'python.exe'
+          if (-not (Test-Path $portablePython)) { throw 'Portable Python executable was not created.' }
+
+          if (-not (Test-Path (Join-Path $portableRoot 'Scripts\pip.exe'))) {
+            $getPip = Join-Path $env:RUNNER_TEMP 'get-pip.py'
+            Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/pip/3.11/get-pip.py' -OutFile $getPip
+            & $portablePython $getPip --disable-pip-version-check
+            if ($LASTEXITCODE -ne 0) { throw "Portable pip bootstrap failed: $LASTEXITCODE" }
+          }
+
+          & $portablePython --version
+          & $portablePython -m pip --version
+          "GROCERY_PYTHON=$portablePython" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify runner tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:GROCERY_PYTHON) { throw 'GROCERY_PYTHON was not prepared.' }
+          if (-not (Test-Path $env:GROCERY_PYTHON)) { throw "Python executable missing: $env:GROCERY_PYTHON" }
+          $version = & $env:GROCERY_PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+          if ($version -ne '3.11') { throw "Python 3.11 required, found $version at $env:GROCERY_PYTHON" }
+          & $env:GROCERY_PYTHON --version
           java -version
 
       - name: Install and verify Windows runtime dependencies
