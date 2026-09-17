@@ -8,32 +8,39 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
           if (Test-Path requirements.txt) { pip install -r requirements.txt }
           if (Test-Path backend/requirements.txt) { pip install -r backend/requirements.txt }
+          if (Test-Path run.py) { echo "run.py found" }
 
-      - name: Build EXE with PyInstaller
+      - name: Build EXEs
         run: |
-          pyinstaller --noconfirm --onefile --windowed --name GroceryManagementSystem --distpath dist --workpath build --specpath . run.py
+          pyinstaller --noconfirm --onefile --windowed --name GroceryManagementSystem run.py
+          
+          if (Test-Path license_manager.py) { pyinstaller --noconfirm --onefile --windowed --name GroceryLicenseManager license_manager.py }
+          if (Test-Path LicenseManager.py) { pyinstaller --noconfirm --onefile --windowed --name GroceryLicenseManager LicenseManager.py }
+          if (Test-Path grocery_license_manager.py) { pyinstaller --noconfirm --onefile --windowed --name GroceryLicenseManager grocery_license_manager.py }
+          
+          Copy-Item dist\*.exe -Destination. -Force
+          dir
           dir dist
-          if (!(Test-Path dist\GroceryManagementSystem.exe)) { throw "EXE not found!" }
+          dir installer
 
       - name: Install Inno Setup
         run: choco install innosetup -y
 
       - name: Build Installer
         run: |
-          Copy-Item dist\GroceryManagementSystem.exe -Destination . -Force
-          iscc installer\grocerymanagementsystem.iss
+          iscc installer\GroceryManagementSystem.iss
           dir installer\Output
 
       - name: Upload Windows Setup installer
