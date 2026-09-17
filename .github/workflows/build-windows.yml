@@ -1,4 +1,5 @@
 name: Build Windows Installer
+
 on:
   workflow_dispatch:
 
@@ -7,28 +8,36 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
           pip install pyinstaller
-      - name: Build EXE
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+          if (Test-Path backend/requirements.txt) { pip install -r backend/requirements.txt }
+
+      - name: Build EXE with PyInstaller
         run: |
-          pyinstaller --noconfirm --onedir --windowed --icon=assets/GroceryManagementSystem.ico --name=GroceryManagementSystem run.py
+          pyinstaller --noconfirm --onefile --windowed --name GroceryManagementSystem --distpath dist --workpath build --specpath . run.py
+          dir dist
+          if (!(Test-Path dist\GroceryManagementSystem.exe)) { throw "EXE not found!" }
+
       - name: Install Inno Setup
-        shell: powershell
-        run: choco install innosetup -y --no-progress
-      - name: Build Setup installer
-        shell: powershell
+        run: choco install innosetup -y
+
+      - name: Build Installer
         run: |
-          New-Item -ItemType Directory -Force -Path installer-output | Out-Null
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer/GroceryManagementSystem.iss"
-          if (!(Test-Path "installer-output/GroceryManagementSystem-Setup.exe")) { throw "Setup installer was not created" }
+          Copy-Item dist\GroceryManagementSystem.exe -Destination . -Force
+          iscc installer\grocerymanagementsystem.iss
+          dir installer\Output
+
       - name: Upload Windows Setup installer
         uses: actions/upload-artifact@v4
         with:
-          name: GroceryManagementSystem-Setup
-          path: installer-output/GroceryManagementSystem-Setup.exe
+          name: Windows-Setup
+          path: installer/Output/*.exe
