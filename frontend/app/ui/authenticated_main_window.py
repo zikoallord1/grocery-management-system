@@ -20,7 +20,6 @@ class AuthenticatedMainWindow(MainWindow):
         if root_layout is None:
             return
 
-        # Header controls are placed in the actual header, not the notification bar.
         header = root_layout.itemAt(0).widget()
         header_layout = header.layout()
         if header_layout is not None:
@@ -34,8 +33,6 @@ class AuthenticatedMainWindow(MainWindow):
             self.logout_button.clicked.connect(self.logout_requested.emit)
             header_layout.addWidget(self.logout_button)
 
-        # The requested desktop design uses a top tab bar. The legacy sidebar and duplicate
-        # camera/recent column are hidden from the authenticated screen to keep it clean.
         body = root_layout.itemAt(2).widget()
         body_layout = body.layout() if body else None
         if body_layout is not None:
@@ -81,7 +78,6 @@ class AuthenticatedMainWindow(MainWindow):
         nav_scroll.setWidget(nav_host)
         root_layout.insertWidget(2, nav_scroll, 0)
 
-        # Compact, stable footer with live clock and the user's own credit.
         footer = root_layout.itemAt(root_layout.count() - 1).widget()
         if footer:
             footer.setMaximumHeight(36)
@@ -107,7 +103,6 @@ class AuthenticatedMainWindow(MainWindow):
                 self._clock_timer.start(1000)
                 self._update_footer_clock()
 
-        # Preserve searchable product selection behavior.
         sales_page = self._create_page("المبيعات")
         if hasattr(sales_page, "product"):
             selector = sales_page.product
@@ -123,7 +118,7 @@ class AuthenticatedMainWindow(MainWindow):
                 selector.lineEdit().setPlaceholderText("اكتب اسم الصنف أو اختره من القائمة...")
                 selector.setCompleter(self._completer(selector))
 
-        root.setStyleSheet(root.styleSheet() + self._authenticated_styles())
+        self.setStyleSheet(self.styleSheet() + self._authenticated_styles())
 
     @staticmethod
     def _completer(selector):
