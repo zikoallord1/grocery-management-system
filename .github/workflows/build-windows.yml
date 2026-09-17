@@ -25,14 +25,12 @@ jobs:
       - name: Build EXEs
         run: |
           pyinstaller --noconfirm --onefile --windowed --name GroceryManagementSystem frontend/app/main.py
-          
           if (Test-Path license_manager.py) { pyinstaller --noconfirm --onefile --windowed --name GroceryLicenseManager license_manager.py }
-          if (Test-Path LicenseManager.py) { pyinstaller --noconfirm --onefile --windowed --name GroceryLicenseManager LicenseManager.py }
-          if (Test-Path grocery_license_manager.py) { pyinstaller --noconfirm --onefile --windowed --name GroceryLicenseManager grocery_license_manager.py }
 
       - name: Prepare installer folder
         run: |
           dir dist
+          Copy-Item dist\*.exe -Destination installer\ -Force
           dir installer
 
       - name: Install Inno Setup
