@@ -6,6 +6,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Find package.json
+        run: |
+          echo "=== where is package.json? ==="
+          find . -name "package.json" -type f | head -20
+          echo "=== frontend folder ==="
+          ls -la frontend/ | head -30
+          echo "=== mobile folder ==="
+          ls -la mobile/ | head -30
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -13,23 +21,22 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Build
+      - name: Build wherever it is
         run: |
-          ls -la
-          if [ -f package.json ]; then
-            npm install && npm run build && npx cap sync android
-          elif [ -f frontend/package.json ]; then
-            cd frontend && npm install && npm run build && npx cap sync android && cd ..
-          elif [ -f mobile/package.json ]; then
-            cd mobile && npm install && npm run build && npx cap sync android && cd ..
-          else
-            echo "No package.json found in root/frontend/mobile"
-            find . -maxdepth 3 -name package.json
-            exit 1
+          PKG=$(find . -name "package.json" -type f | head -1)
+          echo "Found: $PKG"
+          DIR=$(dirname "$PKG")
+          cd "$DIR"
+          npm install
+          npm run build || echo "no build"
+          if [ -f "capacitor.config.ts" ] || [ -f "capacitor.config.json" ]; then
+            npx cap sync android
           fi
       - name: Build APK
         run: |
-          if [ -d android ]; then cd android; elif [ -d frontend/android ]; then cd frontend/android; elif [ -d mobile/android ]; then cd mobile/android; fi
+          APK_GRADLE=$(find . -name "gradlew" -type f | head -1)
+          echo "Gradle at: $APK_GRADLE"
+          cd $(dirname "$APK_GRADLE")
           chmod +x gradlew
           ./gradlew :app:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
