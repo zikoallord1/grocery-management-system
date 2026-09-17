@@ -80,11 +80,13 @@ class ModulePage(QFrame):
 
 
 class MainWindow(QMainWindow):
+    """Main RTL shell. Primary navigation is permanently docked on the RIGHT."""
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle(BRANDING.program_name)
         self.resize(1180, 760)
-        self.setMinimumSize(980, 650)
+        self.setMinimumSize(900, 600)
         self.setLayoutDirection(Qt.RightToLeft)
         self._cards = {}
         self._pages = {}
@@ -94,20 +96,21 @@ class MainWindow(QMainWindow):
         self._notification_timer = QTimer(self)
         self._notification_timer.timeout.connect(self._move_notification)
         self._notification_timer.start(12000)
+        self.refresh_dashboard()
 
     def _build_ui(self):
         root = QWidget()
         root_layout = QVBoxLayout(root)
-        root_layout.setContentsMargins(22, 18, 22, 14)
-        root_layout.setSpacing(12)
+        root_layout.setContentsMargins(16, 14, 16, 10)
+        root_layout.setSpacing(10)
 
         header = QFrame()
         header.setObjectName("header")
         hl = QHBoxLayout(header)
-        hl.setContentsMargins(22, 16, 22, 16)
+        hl.setContentsMargins(20, 13, 20, 13)
         hl.setSpacing(12)
         identity = QVBoxLayout()
-        identity.setSpacing(3)
+        identity.setSpacing(2)
         title = QLabel(BRANDING.program_name)
         title.setObjectName("appTitle")
         identity.addWidget(title)
@@ -138,35 +141,10 @@ class MainWindow(QMainWindow):
         }
         self._specs = specs
 
-        nav_scroll = QScrollArea()
-        nav_scroll.setObjectName("topNavigationScroll")
-        nav_scroll.setWidgetResizable(True)
-        nav_scroll.setFrameShape(QFrame.NoFrame)
-        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        nav = QFrame()
-        nav.setObjectName("topNavigation")
-        nav.setMinimumWidth(max(960, len(specs) * 105))
-        nav_layout = QHBoxLayout(nav)
-        nav_layout.setContentsMargins(6, 6, 6, 6)
-        nav_layout.setSpacing(6)
-        for label in specs:
-            button = QPushButton(label)
-            button.setObjectName("navButton")
-            button.setProperty("active", label == "الرئيسية")
-            button.setMinimumWidth(94)
-            button.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-            button.clicked.connect(lambda checked=False, name=label: self._show_page(name))
-            nav_layout.addWidget(button)
-            self._nav_buttons[label] = button
-        nav_layout.addStretch(1)
-        nav_scroll.setWidget(nav)
-        root_layout.addWidget(nav_scroll)
-
         ticker = QFrame()
         ticker.setObjectName("notificationBar")
         ticker_layout = QHBoxLayout(ticker)
-        ticker_layout.setContentsMargins(12, 5, 12, 5)
+        ticker_layout.setContentsMargins(10, 4, 10, 4)
         ticker_layout.setSpacing(8)
         notification_title = QLabel("التنبيهات")
         notification_title.setObjectName("notificationTitle")
@@ -187,24 +165,65 @@ class MainWindow(QMainWindow):
         ]
         self._notification_label.setText(self._notification_messages[0])
 
+        # Desktop shell: RIGHT = primary navigation, LEFT = content.
+        shell = QHBoxLayout()
+        shell.setContentsMargins(0, 0, 0, 0)
+        shell.setSpacing(12)
+
+        nav_scroll = QScrollArea()
+        nav_scroll.setObjectName("topNavigationScroll")
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setFrameShape(QFrame.NoFrame)
+        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        nav_scroll.setFixedWidth(188)
+
+        nav = QFrame()
+        nav.setObjectName("topNavigation")
+        nav_layout = QVBoxLayout(nav)
+        nav_layout.setContentsMargins(7, 8, 7, 8)
+        nav_layout.setSpacing(5)
+        for label in specs:
+            button = QPushButton(label)
+            button.setObjectName("navButton")
+            button.setProperty("active", label == "الرئيسية")
+            button.setMinimumHeight(43)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.clicked.connect(lambda checked=False, name=label: self._show_page(name))
+            nav_layout.addWidget(button)
+            self._nav_buttons[label] = button
+        nav_layout.addStretch(1)
+        nav_scroll.setWidget(nav)
+
+        content_panel = QFrame()
+        content_panel.setObjectName("contentPanel")
+        content_layout = QVBoxLayout(content_panel)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+
         self.stack = QStackedWidget()
         self.dashboard = self._dashboard_page()
         self.stack.addWidget(self.dashboard)
         self._pages["الرئيسية"] = self.dashboard
-        scroll = QScrollArea()
-        scroll.setObjectName("contentScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setWidget(self.stack)
-        root_layout.addWidget(scroll, 1)
+
+        content_scroll = QScrollArea()
+        content_scroll.setObjectName("contentScroll")
+        content_scroll.setWidgetResizable(True)
+        content_scroll.setFrameShape(QFrame.NoFrame)
+        content_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        content_scroll.setWidget(self.stack)
+        content_layout.addWidget(content_scroll)
+
+        # Add content first visually on the left, navigation last on the right.
+        shell.addWidget(content_panel, 1)
+        shell.addWidget(nav_scroll, 0)
+        root_layout.addLayout(shell, 1)
 
         footer = QFrame()
         footer.setObjectName("footerPanel")
         fl = QHBoxLayout(footer)
-        fl.setContentsMargins(10, 5, 10, 5)
+        fl.setContentsMargins(8, 3, 8, 3)
         credit = QLabel(f"{BRANDING.designer_credit} | {BRANDING.contact_text}")
-        credit.setWordWrap(True)
+        credit.setWordWrap(False)
         fl.addWidget(credit, 1)
         call = QPushButton("☎ اتصال")
         call.setObjectName("linkButton")
@@ -256,10 +275,10 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(10, 10, 10, 18)
-        layout.setSpacing(18)
+        layout.setSpacing(16)
         cards = QGridLayout()
-        cards.setHorizontalSpacing(14)
-        cards.setVerticalSpacing(14)
+        cards.setHorizontalSpacing(12)
+        cards.setVerticalSpacing(12)
         for i, (key, label) in enumerate([
             ("sales", "مبيعات اليوم"),
             ("purchases", "مشتريات اليوم"),
@@ -277,14 +296,14 @@ class MainWindow(QMainWindow):
         quick = QFrame()
         quick.setObjectName("panel")
         ql = QVBoxLayout(quick)
-        ql.setContentsMargins(20, 18, 20, 18)
-        ql.setSpacing(14)
+        ql.setContentsMargins(18, 16, 18, 16)
+        ql.setSpacing(12)
         h = QLabel("العمليات الرئيسية")
         h.setObjectName("pageTitle")
         ql.addWidget(h)
         row = QGridLayout()
-        row.setHorizontalSpacing(12)
-        row.setVerticalSpacing(12)
+        row.setHorizontalSpacing(10)
+        row.setVerticalSpacing(10)
         for i, (label, target) in enumerate([
             ("فاتورة بيع جديدة", "المبيعات"),
             ("فاتورة شراء جديدة", "المشتريات"),
@@ -320,8 +339,9 @@ class MainWindow(QMainWindow):
     def _move_notification(self):
         if not self._notification_messages:
             return
-        text = self._notification_messages[self._notification_offset % len(self._notification_messages)]
-        self._notification_label.setText(text)
+        self._notification_label.setText(
+            self._notification_messages[self._notification_offset % len(self._notification_messages)]
+        )
         self._notification_offset += 1
 
     def refresh_dashboard(self):
@@ -341,7 +361,9 @@ class MainWindow(QMainWindow):
                 "low": reports.low_stock_count(),
             }
             for key, value in values.items():
-                self._cards[key].value_label.setText(str(int(value)) if key == "low" else f"{value:,.2f}")
+                self._cards[key].value_label.setText(
+                    str(int(value)) if key == "low" else f"{value:,.2f}"
+                )
         finally:
             session.close()
 
@@ -356,21 +378,23 @@ class MainWindow(QMainWindow):
         QWidget { font-family: 'Noto Sans Arabic', 'Segoe UI', Tahoma, Arial; font-size: 14px; }
         QMainWindow { background: #f5f7fb; }
         #header { background: #17324d; border-radius: 12px; }
-        #appTitle { color: white; font-size: 25px; font-weight: 700; }
+        #appTitle { color: white; font-size: 24px; font-weight: 700; }
         #appSubtitle { color: #dce8f2; font-size: 13px; }
         #topNavigationScroll { background: transparent; border: none; }
-        #topNavigation { background: white; border: 1px solid #dbe3ec; border-radius: 10px; }
-        #navButton { min-height: 42px; padding: 0 12px; border-radius: 7px; background: #17324d; color: white; border: none; }
+        #topNavigation { background: white; border: 1px solid #dbe3ec; border-radius: 11px; }
+        #navButton { min-height: 43px; padding: 0 10px; border-radius: 8px; background: #17324d; color: white; border: none; text-align: right; }
+        #navButton:hover { background: #254b6c; }
         #navButton[active="true"] { background: #2d6a9f; font-weight: 700; }
-        #notificationBar { background: #eaf1f7; border: 1px solid #cbd9e6; border-radius: 8px; min-height: 34px; }
+        #notificationBar { background: #eaf1f7; border: 1px solid #cbd9e6; border-radius: 8px; min-height: 32px; }
         #notificationTitle { color: #17324d; font-weight: 700; min-width: 65px; }
         #notificationText { color: #294b67; font-size: 13px; }
+        #contentPanel { background: transparent; }
         #summaryCard, #panel { background: white; border: 1px solid #dbe3ec; border-radius: 10px; }
-        #summaryCard { min-height: 92px; }
+        #summaryCard { min-height: 88px; }
         #summaryLabel { color: #61758a; }
-        #cardValue { font-size: 23px; font-weight: 700; color: #17324d; }
+        #cardValue { font-size: 22px; font-weight: 700; color: #17324d; }
         #pageTitle { font-size: 20px; font-weight: 700; color: #17324d; }
-        #pageDescription { color: #61758a; font-size: 14px; line-height: 1.5; }
+        #pageDescription { color: #61758a; font-size: 14px; }
         QPushButton { min-height: 40px; padding: 0 14px; border-radius: 7px; border: 1px solid #cbd5df; background: white; }
         QPushButton:hover { border-color: #8fa6b8; }
         #primaryButton { background: #17324d; color: white; border: none; }
@@ -378,4 +402,5 @@ class MainWindow(QMainWindow):
         #actionButton { min-height: 48px; padding: 0 12px; }
         #linkButton { border: none; background: transparent; color: #17324d; }
         #dangerButton { background: #fff0f0; border-color: #e0a4a4; }
+        #footerPanel { min-height: 28px; max-height: 34px; }
         """
