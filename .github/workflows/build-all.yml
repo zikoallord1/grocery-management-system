@@ -61,7 +61,7 @@ jobs:
 
           if (-not (Test-Path (Join-Path $portableRoot 'Scripts\pip.exe'))) {
             $getPip = Join-Path $env:RUNNER_TEMP 'get-pip.py'
-            Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/pip/3.11/get-pip.py' -OutFile $getPip
+            Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile $getPip
             & $portablePython $getPip --disable-pip-version-check
             if ($LASTEXITCODE -ne 0) { throw "Portable pip bootstrap failed: $LASTEXITCODE" }
           }
