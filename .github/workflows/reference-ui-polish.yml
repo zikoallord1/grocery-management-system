@@ -1,0 +1,68 @@
+name: Apply Reference UI Polish
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/reference-ui-polish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply reference visual system without changing layout logic
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('frontend/app/ui/main_window.py')
+          text = p.read_text(encoding='utf-8')
+          old = """        #primaryButton:hover { background: #006be0; }\n        #secondaryButton { background: #edf6ff; color: #07539d; }\n        #actionButton { min-height: 46px; background: #ffffff; border: 1px solid #c5ddf5; color: #07539d; }\n"""
+          new = """        #primaryButton:hover { background: #006be0; }\n        #secondaryButton { background: #edf6ff; color: #07539d; }\n        #actionButton { min-height: 46px; background: #ffffff; border: 1px solid #c5ddf5; color: #07539d; }\n        #referenceToolbar { background: #ffffff; border: 1px solid #cfe1f3; border-radius: 10px; }\n        #referencePanel { background: #ffffff; border: 1px solid #cfe1f3; border-radius: 10px; }\n        #referencePanelTitle { color: #064b91; font-size: 15px; font-weight: 900; padding-bottom: 4px; border-bottom: 2px solid #eaf5ff; }\n        #sideActionButton { min-height: 40px; background: #f7fbff; border: 1px solid #d5e7f8; color: #07539d; text-align: right; }\n        #sideActionButton:hover { background: #eaf5ff; border-color: #76b7ee; }\n        #totalsPanel { background: #eef7ff; border: 1px solid #c5ddf5; border-radius: 8px; }\n        #totalsPanel QLabel { color: #064b91; font-weight: 900; }\n        #totalsPanel QLabel#cardValue { font-size: 18px; }\n        #paymentPanel { background: #f7fbff; border: 1px solid #d5e7f8; border-radius: 8px; }\n        #miniLabel { color: #6c8196; font-size: 11px; font-weight: 800; }\n        #pageStack { background: transparent; }\n        #contentScroll { padding: 0; }\n        #referencePanel QTableWidget, #referencePanel QTableView { min-height: 180px; }\n"""
+          if old not in text:
+              raise SystemExit('Expected reference stylesheet anchor was not found; refusing mutation.')
+          if '#referenceToolbar {' in text:
+              print('Reference UI polish already present.')
+          else:
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+              print('Reference UI polish applied.')
+          PY
+
+      - name: Validate Python and right-side navigation contract
+        run: |
+          python -m compileall -q frontend backend
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('frontend/app/ui/main_window.py').read_text(encoding='utf-8')
+          required = [
+              'shell.setDirection(QHBoxLayout.RightToLeft)',
+              'shell.addWidget(content_panel, 1)',
+              'shell.addWidget(nav_scroll, 0)',
+              'nav_scroll.setFixedWidth(196)',
+              'self._notification_timer.start(28)',
+              '#referenceToolbar {',
+              '#referencePanel {',
+          ]
+          missing = [x for x in required if x not in text]
+          if missing:
+              raise SystemExit('UI contract failed: ' + repr(missing))
+          print('Reference UI contract: PASS')
+          PY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/app/ui/main_window.py
+          if git diff --cached --quiet; then
+            echo "No UI changes to commit."
+          else
+            git commit -m "ui: apply reference visual system across workspace"
+            git push
+          fi
