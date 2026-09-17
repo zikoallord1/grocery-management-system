@@ -25,23 +25,14 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $python = Get-Command python -ErrorAction SilentlyContinue
-          if (-not $python) {
-            $candidates = @(
-              'C:\Users\Ziko\AppData\Local\Programs\Python\Python311\python.exe',
-              'C:\Program Files\Python311\python.exe',
-              'C:\Python311\python.exe'
-            )
-            foreach ($candidate in $candidates) {
-              if (Test-Path $candidate) { $python = Get-Item $candidate; break }
-            }
-          }
-          if (-not $python) { throw 'Python 3.11 was not found on the self-hosted runner.' }
-          $pythonPath = $python.Source
-          if (-not $pythonPath) { $pythonPath = $python.Path }
-          & $pythonPath --version
+          $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+          if (-not $pythonCmd) { $pythonCmd = Get-Command py -ErrorAction SilentlyContinue }
+          if (-not $pythonCmd) { throw 'Python launcher was not found on the self-hosted runner.' }
+          $pythonPath = $pythonCmd.Source
+          if (-not $pythonPath) { $pythonPath = $pythonCmd.Path }
           $version = & $pythonPath -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
           if ($version -ne '3.11') { throw "Python 3.11 required, found $version at $pythonPath" }
+          & $pythonPath --version
           "GROCERY_PYTHON=$pythonPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           java -version
 
@@ -60,18 +51,12 @@ jobs:
           $ErrorActionPreference = 'Stop'
           if (Test-Path dist) { Remove-Item dist -Recurse -Force }
           if (Test-Path build) { Remove-Item build -Recurse -Force }
-
-          & $env:GROCERY_PYTHON -m PyInstaller --noconfirm --onefile --windowed `
-            --name GroceryManagementSystem run.py
+          & $env:GROCERY_PYTHON -m PyInstaller --noconfirm --onefile --windowed --name GroceryManagementSystem run.py
           if ($LASTEXITCODE -ne 0) { throw "Main PyInstaller build failed: $LASTEXITCODE" }
-
-          & $env:GROCERY_PYTHON -m PyInstaller --noconfirm --onefile --console `
-            --name GroceryLicenseManager license_manager.py
+          & $env:GROCERY_PYTHON -m PyInstaller --noconfirm --onefile --console --name GroceryLicenseManager license_manager.py
           if ($LASTEXITCODE -ne 0) { throw "License PyInstaller build failed: $LASTEXITCODE" }
-
           if (-not (Test-Path 'dist/GroceryManagementSystem.exe')) { throw 'Main executable missing.' }
           if (-not (Test-Path 'dist/GroceryLicenseManager.exe')) { throw 'License executable missing.' }
-
           $main = Get-Item 'dist/GroceryManagementSystem.exe'
           $license = Get-Item 'dist/GroceryLicenseManager.exe'
           if ($main.Length -lt 10000000) { throw "Main EXE unexpectedly small: $($main.Length)" }
@@ -86,9 +71,7 @@ jobs:
           $exe = (Resolve-Path 'dist/GroceryManagementSystem.exe').Path
           $p = Start-Process -FilePath $exe -PassThru
           Start-Sleep -Seconds 8
-          if ($p.HasExited) {
-            throw "Standalone application exited during smoke test. ExitCode=$($p.ExitCode)"
-          }
+          if ($p.HasExited) { throw "Standalone application exited during smoke test. ExitCode=$($p.ExitCode)" }
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
           Write-Host 'Standalone EXE smoke test: PASSED'
 
@@ -96,13 +79,17 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $iscc = 'C:\Users\Ziko\AppData\Local\Programs\Inno Setup 7\ISCC.exe'
-          if (-not (Test-Path $iscc)) { throw "Inno Setup compiler not found: $iscc" }
+          $isccCandidates = @(
+            'C:\Users\Ziko\AppData\Local\Programs\Inno Setup 7\ISCC.exe',
+            'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+            'C:\Program Files\Inno Setup 6\ISCC.exe'
+          )
+          $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw 'Inno Setup compiler was not found on the self-hosted runner.' }
           & $iscc 'installer/GroceryManagementSystem.iss'
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
-
           $setup = Get-Item 'dist/GroceryManagementSystem-Setup.exe' -ErrorAction Stop
-          if ($setup.Length -lt 10000000) { throw "Installer unexpectedly small: $($setup.Length)" }
+          if ($setup.Length -lt 10000000) { throw "Installer unexpectedly small: $($setup.Length) bytes" }
           Write-Host "SETUP EXE: $($setup.Length) bytes"
 
       - name: Smoke test installer and installed application
@@ -114,13 +101,10 @@ jobs:
           New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
           $installDir = Join-Path $testRoot 'app'
           $setup = (Resolve-Path 'dist/GroceryManagementSystem-Setup.exe').Path
-
           $installer = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$installDir" -PassThru -Wait
           if ($installer.ExitCode -ne 0) { throw "Installer exited with code $($installer.ExitCode)" }
-
           $installedExe = Join-Path $installDir 'GroceryManagementSystem.exe'
           if (-not (Test-Path $installedExe)) { throw "Installed EXE missing: $installedExe" }
-
           $p = Start-Process -FilePath $installedExe -PassThru
           Start-Sleep -Seconds 8
           if ($p.HasExited) { throw "Installed application exited during smoke test. ExitCode=$($p.ExitCode)" }
