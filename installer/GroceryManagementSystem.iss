@@ -24,15 +24,11 @@ UninstallDisplayIcon={app}\GroceryManagementSystem.exe
 Source: "..\GroceryManagementSystem.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\GroceryLicenseManager.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\assets\GroceryManagementSystem.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\build_docs\*.pdf"; DestDir: "{app}\docs"; Flags: ignoreversion
 
 [Icons]
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\GroceryManagementSystem.ico"; Comment: "نظام البقالة المحاسبي"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\GroceryManagementSystem.ico"
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\GroceryManagementSystem.ico"
-Name: "{group}\مدير التراخيص"; Filename: "{app}\GroceryLicenseManager.exe"; WorkingDir: "{app}"; IconFilename: "{app}\GroceryManagementSystem.ico"
+Name: "{group}\مدير التراخيص"; Filename: "{app}\GroceryLicenseManager.exe"; WorkingDir: "{app}"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "تشغيل نظام البقالة المحاسبي"; Flags: nowait postinstall skipifsilent
-
-[UninstallDelete]
-Type: filesanddirs; Name: "{app}\logs"
