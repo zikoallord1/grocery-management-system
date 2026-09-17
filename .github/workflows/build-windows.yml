@@ -1,10 +1,10 @@
-name: Build Windows Installer
+name: windows-build
 on:
-  workflow_dispatch:
   push:
+  workflow_dispatch:
 
 jobs:
-  build:
+  windows-build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,31 +18,45 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install customtkinter pillow opencv-python pyinstaller
-          if (Test-Path requirements.txt) { pip install -r requirements.txt }
-          if (Test-Path backend/requirements.txt) { pip install -r backend/requirements.txt }
-          if (Test-Path frontend/requirements.txt) { pip install -r frontend/requirements.txt }
 
-      - name: Build EXEs
+      - name: Build EXE
         run: |
           pyinstaller --noconfirm --onefile --windowed --name GroceryManagementSystem frontend/app/main.py
-          if (Test-Path license_manager.py) { pyinstaller --noconfirm --onefile --windowed --name GroceryLicenseManager license_manager.py }
 
-      - name: Prepare installer folder
+      - name: Prepare folders
+        shell: powershell
         run: |
-          dir dist
-          Copy-Item dist\*.exe -Destination installer\ -Force
-          dir installer
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          New-Item -ItemType Directory -Force -Path installer/Output | Out-Null
+          New-Item -ItemType Directory -Force -Path client/package | Out-Null
+          Copy-Item dist/GroceryManagementSystem.exe -Destination client/package/ -Force
+          Copy-Item dist/GroceryManagementSystem.exe -Destination installer/ -Force
+          if (Test-Path assets/GroceryManagementSystem.ico) { Copy-Item assets/GroceryManagementSystem.ico -Destination client/package/ -Force }
+
+      - name: Create desktop shortcut in client package
+        shell: powershell
+        run: |
+          $wsh = New-Object -comObject WScript.Shell
+          $lnk = $wsh.CreateShortcut("$PWD/client/package/Grocery Management System.lnk")
+          $lnk.TargetPath = "$PWD/client/package/GroceryManagementSystem.exe"
+          $lnk.WorkingDirectory = "$PWD/client/package"
+          $lnk.Save()
 
       - name: Install Inno Setup
         run: choco install innosetup -y
 
-      - name: Build Installer
+      - name: Build Windows Setup installer
         run: |
           iscc installer/GroceryManagementSystem.iss
-          dir installer/Output
 
-      - name: Upload Windows Setup Installer
+      - name: Upload Windows Setup installer
         uses: actions/upload-artifact@v4
         with:
           name: windows-Setup
           path: installer/Output/*.exe
+
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: client/package/
