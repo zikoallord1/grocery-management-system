@@ -87,7 +87,7 @@ def main():
         login = LoginDialog()
         if login.exec() != QDialog.DialogCode.Accepted:
             return 0
-        user = login.authenticated_user
+        user = getattr(login, "authenticated_user",None) or getattr(login, "user", None)
         window = AuthenticatedMainWindow(user)
         _add_admin_modules(window)
         apply_font_to_window(window, app)
