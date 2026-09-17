@@ -1,105 +1,44 @@
-name: UI Refinement
+name: UI Validation
 
 on:
   push:
     paths:
       - '.github/workflows/ui_refinement.yml'
+      - 'frontend/app/ui/main_window.py'
+      - 'frontend/app/ui/sales_page.py'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  refine-ui:
+  validate-ui:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Refine main window UI
-        shell: python
+      - name: Validate Python UI
+        run: python -m compileall -q frontend backend
+
+      - name: Verify reference layout contract
         run: |
+          python - <<'PY'
           from pathlib import Path
           p = Path('frontend/app/ui/main_window.py')
           text = p.read_text(encoding='utf-8')
-          start = text.index('        shell = QHBoxLayout()')
-          end_marker = '        root_layout.addLayout(shell, 1)'
-          end = text.index(end_marker, start) + len(end_marker)
-          replacement = '''        nav_scroll = QScrollArea()
-          nav_scroll.setObjectName("topNavigationScroll")
-          nav_scroll.setWidgetResizable(True)
-          nav_scroll.setFrameShape(QFrame.NoFrame)
-          nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-          nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-          nav_scroll.setFixedHeight(58)
-          nav = QFrame()
-          nav.setObjectName("topNavigation")
-          nav.setLayoutDirection(Qt.RightToLeft)
-          nav_layout = QHBoxLayout(nav)
-          nav_layout.setContentsMargins(6, 5, 6, 5)
-          nav_layout.setSpacing(5)
-          for label in specs:
-              button = QPushButton(label)
-              button.setObjectName("navButton")
-              button.setProperty("active", label == "الرئيسية")
-              button.setMinimumHeight(42)
-              button.setMinimumWidth(86)
-              button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-              button.clicked.connect(lambda checked=False, name=label: self._show_page(name))
-              nav_layout.addWidget(button)
-              self._nav_buttons[label] = button
-          nav_layout.addStretch(1)
-          nav_scroll.setWidget(nav)
-          root_layout.addWidget(nav_scroll)
-          content_panel = QFrame()
-          content_panel.setObjectName("contentPanel")
-          content_panel.setLayoutDirection(Qt.RightToLeft)
-          content_layout = QVBoxLayout(content_panel)
-          content_layout.setContentsMargins(0, 0, 0, 0)
-          self.stack = QStackedWidget()
-          self.stack.setObjectName("pageStack")
-          self.dashboard = self._dashboard_page()
-          self.stack.addWidget(self.dashboard)
-          self._pages["الرئيسية"] = self.dashboard
-          content_scroll = QScrollArea()
-          content_scroll.setObjectName("contentScroll")
-          content_scroll.setWidgetResizable(True)
-          content_scroll.setFrameShape(QFrame.NoFrame)
-          content_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-          content_scroll.setWidget(self.stack)
-          content_layout.addWidget(content_scroll)
-          root_layout.addWidget(content_panel, 1)'''
-          text = text[:start] + replacement + text[end:]
-          old = '''        #topNavigationScroll { background: transparent; border: none; }
-          #topNavigation { background: #003f7d; border: none; border-radius: 10px; }
-          #navButton { min-height: 42px; padding: 0 12px; border-radius: 7px; background: transparent; color: #ffffff; border: 1px solid transparent; text-align: right; font-weight: 700; }
-          #navButton:hover { background: #0b5da8; border-color: #287dc2; }
-          #navButton[active="true"] { background: #087cf2; color: #ffffff; border: 1px solid #5ab0ff; font-weight: 900; }'''
-          new = '''        #topNavigationScroll { background: transparent; border: none; }
-          #topNavigation { background: #003f7d; border: none; border-radius: 10px; }
-          #navButton { min-height: 42px; padding: 0 14px; border-radius: 8px; background: transparent; color: #ffffff; border: 1px solid transparent; text-align: center; font-weight: 800; }
-          #navButton:hover { background: #0b5da8; border-color: #287dc2; }
-          #navButton[active="true"] { background: #087cf2; color: #ffffff; border: 1px solid #5ab0ff; font-weight: 900; }
-          #referencePanel, #paymentPanel, #totalsPanel { background: #ffffff; border: 1px solid #cfe1f3; border-radius: 10px; }
-          #referencePanelTitle { color: #064b91; font-size: 15px; font-weight: 900; padding-bottom: 2px; }
-          #referenceToolbar { background: #ffffff; border: 1px solid #cfe1f3; border-radius: 10px; }
-          #sideActionButton { min-height: 42px; text-align: right; }
-          #miniLabel { color: #6c8196; font-weight: 700; }
-          #totalsPanel { background: #eef7ff; }
-          #paymentPanel { background: #f8fbff; }
-          QTableWidget { min-height: 180px; }
-          QComboBox, QDoubleSpinBox, QLineEdit { min-height: 38px; }'''
-          if old not in text:
-              raise SystemExit('Expected stylesheet block not found; refusing unsafe edit')
-          text = text.replace(old, new)
-          p.write_text(text, encoding='utf-8')
-
-      - name: Validate
-        run: python -m compileall -q frontend backend
-
-      - name: Commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/app/ui/main_window.py
-          if git diff --cached --quiet; then echo "No changes"; else git commit -m "ui: apply top navigation and workspace styling" && git push; fi
+          required = [
+              'Reference RTL workspace: content LEFT, navigation RIGHT',
+              'shell.setDirection(QHBoxLayout.RightToLeft)',
+              'shell.addWidget(content_panel, 1)',
+              'shell.addWidget(nav_scroll, 0)',
+              'self._notification_timer.start(28)',
+              'self._notification_label',
+          ]
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit('Reference layout contract failed: ' + repr(missing))
+          if 'nav_scroll.setFixedWidth(196)' not in text:
+              raise SystemExit('Right-side navigation width contract failed')
+          print('Reference layout contract: PASS')
+          PY
