@@ -6,17 +6,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPageSize, QTextDocument
 from PySide6.QtPrintSupport import QPrintPreviewDialog, QPrinter
 from PySide6.QtWidgets import (
-    QComboBox,
-    QDoubleSpinBox,
-    QFormLayout,
-    QHBoxLayout,
-    QLabel,
-    QMessageBox,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QVBoxLayout,
-    QWidget,
+    QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout,
+    QHBoxLayout, QLabel, QMessageBox, QPushButton, QTableWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget,
 )
 from sqlalchemy import select
 
@@ -54,8 +46,9 @@ class SalesPage(QWidget):
         self.lines = []
         self.payment_lines = []
         self.lines_table = QTableWidget(0, 6)
-        self.lines_table.setHorizontalHeaderLabels(["الصنف", "الكمية", "السعر", "الخصم", "الإجمالي", "المخزون"])
+        self.lines_table.setHorizontalHeaderLabels(["#", "الصنف", "الباركود", "الكمية", "سعر الوحدة", "الإجمالي"])
         self.lines_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.lines_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.payments_table = QTableWidget(0, 2)
         self.payments_table.setHorizontalHeaderLabels(["وسيلة الدفع", "المبلغ"])
         self.payments_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -65,78 +58,145 @@ class SalesPage(QWidget):
         self._build()
         self.refresh_data()
 
+    def _panel(self, title):
+        panel = QFrame()
+        panel.setObjectName("referencePanel")
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+        heading = QLabel(title)
+        heading.setObjectName("referencePanelTitle")
+        layout.addWidget(heading)
+        return panel, layout
+
     def _build(self):
         root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(7)
+
+        toolbar = QFrame()
+        toolbar.setObjectName("referenceToolbar")
+        tb = QHBoxLayout(toolbar)
+        tb.setContentsMargins(10, 7, 10, 7)
+        tb.setSpacing(8)
         title = QLabel("فاتورة بيع جديدة")
         title.setObjectName("pageTitle")
-        root.addWidget(title)
-        description = QLabel("أضف عدة أصناف إلى الفاتورة، ويمكن تقسيم المبلغ المدفوع بين النقد والمحفظة والتحويل البنكي، أو تركه آجلًا.")
-        description.setWordWrap(True)
-        description.setObjectName("pageDescription")
-        root.addWidget(description)
-        form = QFormLayout()
-        form.addRow("الصنف", self.product)
-        form.addRow("الكمية", self.quantity)
-        form.addRow("سعر البيع", self.price)
-        form.addRow("الرصيد المتاح", self.stock_label)
-        root.addLayout(form)
+        tb.addWidget(title, 1)
+        for label, slot in [("حفظ", self.create_sale), ("معاينة", self.preview_selected), ("تحديث", self.refresh_data)]:
+            b = QPushButton(label)
+            b.setObjectName("primaryButton" if label == "حفظ" else "secondaryButton")
+            b.clicked.connect(slot)
+            tb.addWidget(b)
+        root.addWidget(toolbar)
+
+        workspace = QHBoxLayout()
+        workspace.setSpacing(7)
+
+        left_panel, left = self._panel("العمليات السريعة")
+        quick_items = [
+            ("🛒", "المبيعات"), ("▣", "المشتريات"),
+            ("＋", "إضافة صنف"), ("▥", "تقرير سريع"),
+        ]
+        for icon, label in quick_items:
+            b = QPushButton(f"{icon}  {label}")
+            b.setObjectName("sideActionButton")
+            left.addWidget(b)
+        left.addSpacing(4)
+        info = QLabel("المخزون المتاح للصنف المحدد")
+        info.setObjectName("miniLabel")
+        left.addWidget(info)
+        left.addWidget(self.stock_label)
+        left.addStretch(1)
+        workspace.addWidget(left_panel, 1)
+
+        center_panel, center = self._panel("بيانات الفاتورة")
+        form = QGridLayout()
+        form.setHorizontalSpacing(8)
+        form.setVerticalSpacing(7)
+        customer_label = QLabel("العميل")
+        form.addWidget(customer_label, 0, 3)
+        form.addWidget(self.customer, 0, 2, 1, 1)
+        product_label = QLabel("الصنف")
+        form.addWidget(product_label, 0, 1)
+        form.addWidget(self.product, 0, 0)
+        form.addWidget(QLabel("الكمية"), 1, 3)
+        form.addWidget(self.quantity, 1, 2)
+        form.addWidget(QLabel("سعر الوحدة"), 1, 1)
+        form.addWidget(self.price, 1, 0)
+        center.addLayout(form)
+
         line_buttons = QHBoxLayout()
-        add_line = QPushButton("إضافة الصنف للفاتورة")
+        add_line = QPushButton("＋ إضافة الصنف")
         add_line.setObjectName("primaryButton")
         add_line.clicked.connect(self.add_line)
-        remove_line = QPushButton("حذف السطر المحدد")
+        remove_line = QPushButton("حذف السطر")
         remove_line.clicked.connect(self.remove_selected_line)
-        clear_lines = QPushButton("تفريغ الفاتورة")
+        clear_lines = QPushButton("إخلاء")
         clear_lines.clicked.connect(self.clear_lines)
         line_buttons.addWidget(add_line)
         line_buttons.addWidget(remove_line)
         line_buttons.addWidget(clear_lines)
-        root.addLayout(line_buttons)
-        root.addWidget(self.lines_table, 1)
-        payment_form = QFormLayout()
-        payment_form.addRow("العميل", self.customer)
-        payment_form.addRow("وسيلة الدفع الحالية", self.payment_method)
-        payment_form.addRow("مبلغ الدفع", self.payment)
-        root.addLayout(payment_form)
-        payment_buttons = QHBoxLayout()
+        center.addLayout(line_buttons)
+        center.addWidget(self.lines_table, 1)
+
+        totals = QFrame()
+        totals.setObjectName("totalsPanel")
+        totals_layout = QGridLayout(totals)
+        totals_layout.setContentsMargins(8, 6, 8, 6)
+        totals_layout.addWidget(QLabel("الإجمالي الكلي"), 0, 1)
+        totals_layout.addWidget(self.total_label, 0, 0)
+        totals_layout.addWidget(QLabel("المدفوع"), 1, 1)
+        totals_layout.addWidget(self.paid_label, 1, 0)
+        totals_layout.addWidget(QLabel("المتبقي"), 2, 1)
+        totals_layout.addWidget(self.remaining_label, 2, 0)
+        center.addWidget(totals)
+        workspace.addWidget(center_panel, 3)
+
+        right_panel, right = self._panel("المبيعات الأخيرة")
+        search = QLineEdit()
+        search.setPlaceholderText("بحث في المبيعات...")
+        right.addWidget(search)
+        search.textChanged.connect(lambda value: self._filter_history(value))
+        right.addWidget(self.history, 1)
+        payment_box = QFrame()
+        payment_box.setObjectName("paymentPanel")
+        payment_layout = QVBoxLayout(payment_box)
+        payment_layout.setContentsMargins(7, 7, 7, 7)
+        payment_layout.addWidget(QLabel("طريقة الدفع"))
+        payment_layout.addWidget(self.payment_method)
+        payment_layout.addWidget(QLabel("المبلغ"))
+        payment_layout.addWidget(self.payment)
         add_payment = QPushButton("إضافة دفعة")
         add_payment.clicked.connect(self.add_payment)
-        remove_payment = QPushButton("حذف الدفعة المحددة")
-        remove_payment.clicked.connect(self.remove_payment)
-        clear_payments = QPushButton("مسح الدفعات")
-        clear_payments.clicked.connect(self.clear_payments)
-        payment_buttons.addWidget(add_payment)
-        payment_buttons.addWidget(remove_payment)
-        payment_buttons.addWidget(clear_payments)
-        root.addLayout(payment_buttons)
-        root.addWidget(self.payments_table)
-        summary = QFormLayout()
-        summary.addRow("إجمالي الفاتورة", self.total_label)
-        summary.addRow("إجمالي المدفوع", self.paid_label)
-        summary.addRow("المتبقي", self.remaining_label)
-        root.addLayout(summary)
-        buttons = QHBoxLayout()
-        save = QPushButton("حفظ وتأكيد الفاتورة")
-        save.setObjectName("primaryButton")
-        save.clicked.connect(self.create_sale)
-        preview = QPushButton("معاينة/طباعة الفاتورة المحددة")
-        preview.clicked.connect(self.preview_selected)
-        refresh = QPushButton("تحديث الأصناف")
-        refresh.clicked.connect(self.refresh_data)
-        back = QPushButton("العودة إلى الرئيسية")
-        back.setObjectName("secondaryButton")
-        back.clicked.connect(self.back_requested.emit)
-        buttons.addWidget(save)
-        buttons.addWidget(preview)
-        buttons.addWidget(refresh)
-        buttons.addWidget(back)
-        root.addLayout(buttons)
-        root.addWidget(QLabel("آخر فواتير البيع"))
-        root.addWidget(self.history, 1)
+        payment_layout.addWidget(add_payment)
+        payment_layout.addWidget(self.payments_table)
+        right.addWidget(payment_box)
+        workspace.addWidget(right_panel, 2)
+        root.addLayout(workspace, 1)
+
+        bottom = QHBoxLayout()
+        for label, slot, name in [
+            ("حفظ وتأكيد الفاتورة", self.create_sale, "primaryButton"),
+            ("معاينة / طباعة", self.preview_selected, "secondaryButton"),
+            ("تحديث الأصناف", self.refresh_data, "secondaryButton"),
+            ("العودة إلى الرئيسية", self.back_requested.emit, "secondaryButton"),
+        ]:
+            b = QPushButton(label)
+            b.setObjectName(name)
+            b.clicked.connect(slot)
+            bottom.addWidget(b)
+        root.addLayout(bottom)
+
         self.product.currentIndexChanged.connect(self.product_changed)
         self.quantity.valueChanged.connect(self.product_changed)
         self.price.valueChanged.connect(self.recalculate)
         self.payment.valueChanged.connect(self.recalculate)
+
+    def _filter_history(self, value):
+        value = value.strip().lower()
+        for row in range(self.history.rowCount()):
+            visible = not value or any(value in (self.history.item(row, c).text().lower() if self.history.item(row, c) else "") for c in range(self.history.columnCount()))
+            self.history.setRowHidden(row, not visible)
 
     def refresh_data(self):
         session = get_session()
@@ -262,7 +322,7 @@ class SalesPage(QWidget):
     def refresh_lines_table(self):
         self.lines_table.setRowCount(len(self.lines))
         for row, line in enumerate(self.lines):
-            values = [line["name"], f"{line['quantity']:,.3f}", f"{line['unit_price']:,.2f}", f"{line['discount']:,.2f}", f"{line['total']:,.2f}", f"{line['stock']:,.3f}"]
+            values = [row + 1, line["name"], "", f"{line['quantity']:,.3f}", f"{line['unit_price']:,.2f}", f"{line['total']:,.2f}"]
             for col, value in enumerate(values):
                 self.lines_table.setItem(row, col, QTableWidgetItem(str(value)))
         self.lines_table.resizeColumnsToContents()
