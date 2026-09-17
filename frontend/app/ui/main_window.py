@@ -80,7 +80,7 @@ class ModulePage(QFrame):
 
 
 class MainWindow(QMainWindow):
-    """Main RTL shell. Primary navigation is permanently docked on the RIGHT."""
+    """Main RTL shell: LEFT navigation, RIGHT content, with a true scrolling ticker."""
 
     def __init__(self):
         super().__init__()
@@ -92,10 +92,12 @@ class MainWindow(QMainWindow):
         self._pages = {}
         self._nav_buttons = {}
         self._notification_offset = 0
+        self._notification_index = 0
+        self._notification_x = 0
         self._build_ui()
         self._notification_timer = QTimer(self)
         self._notification_timer.timeout.connect(self._move_notification)
-        self._notification_timer.start(12000)
+        self._notification_timer.start(35)
         self.refresh_dashboard()
 
     def _build_ui(self):
@@ -149,11 +151,19 @@ class MainWindow(QMainWindow):
         notification_title = QLabel("التنبيهات")
         notification_title.setObjectName("notificationTitle")
         ticker_layout.addWidget(notification_title)
+
+        self._notification_viewport = QFrame()
+        self._notification_viewport.setObjectName("notificationViewport")
+        self._notification_viewport.setMinimumHeight(26)
+        self._notification_viewport.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        ticker_layout.addWidget(self._notification_viewport, 1)
+
         self._notification_label = QLabel()
         self._notification_label.setObjectName("notificationText")
-        self._notification_label.setAlignment(Qt.AlignCenter)
         self._notification_label.setWordWrap(False)
-        ticker_layout.addWidget(self._notification_label, 1)
+        self._notification_label.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        self._notification_label.setParent(self._notification_viewport)
+
         root_layout.addWidget(ticker)
         self._notification_messages = [
             "مرحبًا بك في نظام إدارة البقالات — تابع المبيعات والمشتريات والمخزون والحسابات من مكان واحد",
@@ -163,12 +173,15 @@ class MainWindow(QMainWindow):
             f"حقوق التصميم والتنفيذ محفوظة — {BRANDING.contact_text}",
             f"للتواصل وطلب البرنامج أو المساعدة: {BRANDING.phone_display} — واتساب متاح",
         ]
-        self._notification_label.setText(self._notification_messages[0])
+        self._notification_text = self._notification_messages[0]
+        self._notification_label.setText(self._notification_text)
 
-        # Desktop shell: RIGHT = primary navigation, LEFT = content.
+        # The application itself is RTL, but this shell is explicitly LTR so the
+        # physical navigation rail remains on the LEFT and the content remains on the RIGHT.
         shell = QHBoxLayout()
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(12)
+        shell.setDirection(QHBoxLayout.LeftToRight)
 
         nav_scroll = QScrollArea()
         nav_scroll.setObjectName("topNavigationScroll")
@@ -176,18 +189,19 @@ class MainWindow(QMainWindow):
         nav_scroll.setFrameShape(QFrame.NoFrame)
         nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        nav_scroll.setFixedWidth(188)
+        nav_scroll.setFixedWidth(205)
 
         nav = QFrame()
         nav.setObjectName("topNavigation")
+        nav.setLayoutDirection(Qt.RightToLeft)
         nav_layout = QVBoxLayout(nav)
-        nav_layout.setContentsMargins(7, 8, 7, 8)
-        nav_layout.setSpacing(5)
+        nav_layout.setContentsMargins(8, 8, 8, 8)
+        nav_layout.setSpacing(6)
         for label in specs:
             button = QPushButton(label)
             button.setObjectName("navButton")
             button.setProperty("active", label == "الرئيسية")
-            button.setMinimumHeight(43)
+            button.setMinimumHeight(45)
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             button.clicked.connect(lambda checked=False, name=label: self._show_page(name))
             nav_layout.addWidget(button)
@@ -197,6 +211,7 @@ class MainWindow(QMainWindow):
 
         content_panel = QFrame()
         content_panel.setObjectName("contentPanel")
+        content_panel.setLayoutDirection(Qt.RightToLeft)
         content_layout = QVBoxLayout(content_panel)
         content_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -213,9 +228,9 @@ class MainWindow(QMainWindow):
         content_scroll.setWidget(self.stack)
         content_layout.addWidget(content_scroll)
 
-        # Add content first visually on the left, navigation last on the right.
-        shell.addWidget(content_panel, 1)
+        # LEFT = navigation, RIGHT = content.
         shell.addWidget(nav_scroll, 0)
+        shell.addWidget(content_panel, 1)
         root_layout.addLayout(shell, 1)
 
         footer = QFrame()
@@ -236,6 +251,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(footer)
         self.setCentralWidget(root)
         self.setStyleSheet(self._stylesheet())
+        self._reset_notification_position()
 
     def _create_page(self, name):
         if name in self._pages:
@@ -336,13 +352,40 @@ class MainWindow(QMainWindow):
             button.style().unpolish(button)
             button.style().polish(button)
 
-    def _move_notification(self):
-        if not self._notification_messages:
+    def _reset_notification_position(self):
+        if not hasattr(self, "_notification_viewport"):
             return
-        self._notification_label.setText(
-            self._notification_messages[self._notification_offset % len(self._notification_messages)]
-        )
-        self._notification_offset += 1
+        self._notification_label.adjustSize()
+        self._notification_x = self._notification_viewport.width()
+        self._notification_label.move(self._notification_x, 0)
+
+    def _move_notification(self):
+        if not self._notification_messages or not hasattr(self, "_notification_viewport"):
+            return
+        viewport_width = self._notification_viewport.width()
+        if viewport_width <= 0:
+            return
+        self._notification_label.adjustSize()
+        label_width = self._notification_label.width()
+        if label_width <= 0:
+            return
+        self._notification_x -= 2
+        if self._notification_x + label_width < 0:
+            self._notification_index = (self._notification_index + 1) % len(self._notification_messages)
+            self._notification_text = self._notification_messages[self._notification_index]
+            self._notification_label.setText(self._notification_text)
+            self._notification_label.adjustSize()
+            label_width = self._notification_label.width()
+            self._notification_x = viewport_width
+        self._notification_label.move(int(self._notification_x), 0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_notification_viewport"):
+            if self._notification_x > self._notification_viewport.width():
+                self._notification_x = self._notification_viewport.width()
+            self._notification_label.adjustSize()
+            self._notification_label.move(int(self._notification_x), 0)
 
     def refresh_dashboard(self):
         session = get_session()
@@ -382,12 +425,13 @@ class MainWindow(QMainWindow):
         #appSubtitle { color: #dce8f2; font-size: 13px; }
         #topNavigationScroll { background: transparent; border: none; }
         #topNavigation { background: white; border: 1px solid #dbe3ec; border-radius: 11px; }
-        #navButton { min-height: 43px; padding: 0 10px; border-radius: 8px; background: #17324d; color: white; border: none; text-align: right; }
+        #navButton { min-height: 45px; padding: 0 10px; border-radius: 8px; background: #17324d; color: white; border: none; text-align: right; }
         #navButton:hover { background: #254b6c; }
         #navButton[active="true"] { background: #2d6a9f; font-weight: 700; }
-        #notificationBar { background: #eaf1f7; border: 1px solid #cbd9e6; border-radius: 8px; min-height: 32px; }
+        #notificationBar { background: #eaf1f7; border: 1px solid #cbd9e6; border-radius: 8px; min-height: 34px; }
+        #notificationViewport { background: transparent; border: none; min-height: 26px; max-height: 26px; overflow: hidden; }
         #notificationTitle { color: #17324d; font-weight: 700; min-width: 65px; }
-        #notificationText { color: #294b67; font-size: 13px; }
+        #notificationText { color: #294b67; font-size: 13px; min-width: 1px; }
         #contentPanel { background: transparent; }
         #summaryCard, #panel { background: white; border: 1px solid #dbe3ec; border-radius: 10px; }
         #summaryCard { min-height: 88px; }
