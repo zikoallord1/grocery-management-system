@@ -80,7 +80,7 @@ class ModulePage(QFrame):
 
 
 class MainWindow(QMainWindow):
-    """Main RTL shell: LEFT navigation, RIGHT content, with a true scrolling ticker."""
+    """Main RTL shell: RIGHT navigation, LEFT content, with a true scrolling ticker."""
 
     def __init__(self):
         super().__init__()
@@ -102,6 +102,7 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self):
         root = QWidget()
+        root.setLayoutDirection(Qt.RightToLeft)
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(16, 14, 16, 10)
         root_layout.setSpacing(10)
@@ -176,12 +177,11 @@ class MainWindow(QMainWindow):
         self._notification_text = self._notification_messages[0]
         self._notification_label.setText(self._notification_text)
 
-        # The application itself is RTL, but this shell is explicitly LTR so the
-        # physical navigation rail remains on the LEFT and the content remains on the RIGHT.
+        # RTL shell: adding navigation first and content second places the navigation rail physically on the RIGHT.
         shell = QHBoxLayout()
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(12)
-        shell.setDirection(QHBoxLayout.LeftToRight)
+        shell.setDirection(QHBoxLayout.RightToLeft)
 
         nav_scroll = QScrollArea()
         nav_scroll.setObjectName("topNavigationScroll")
@@ -228,9 +228,9 @@ class MainWindow(QMainWindow):
         content_scroll.setWidget(self.stack)
         content_layout.addWidget(content_scroll)
 
-        # LEFT = navigation, RIGHT = content.
-        shell.addWidget(nav_scroll, 0)
+        # Physical layout required by the reference: content on LEFT, navigation on RIGHT.
         shell.addWidget(content_panel, 1)
+        shell.addWidget(nav_scroll, 0)
         root_layout.addLayout(shell, 1)
 
         footer = QFrame()
