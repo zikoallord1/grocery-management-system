@@ -1,9 +1,11 @@
 from datetime import datetime
+from webbrowser import open as open_url
 
 from PySide6.QtCore import QTimer, Signal, Qt
 from PySide6.QtWidgets import QLabel, QCompleter, QFrame, QPushButton, QComboBox
 
 from frontend.app.ui.main_window import MainWindow
+from frontend.app.branding import BRANDING
 
 
 class AuthenticatedMainWindow(MainWindow):
@@ -58,19 +60,25 @@ class AuthenticatedMainWindow(MainWindow):
         footer_layout = footer.layout()
         if footer_layout is not None:
             footer_layout.setContentsMargins(8, 2, 8, 2)
-            while footer_layout.count() > 1:
-                item = footer_layout.takeAt(1)
+            while footer_layout.count() > 0:
+                item = footer_layout.takeAt(0)
                 widget = item.widget()
                 if widget is not None:
-                    widget.hide()
                     widget.deleteLater()
-            credit = footer_layout.itemAt(0).widget()
-            if credit is not None:
-                credit.setText(f"{self._safe_credit()}")
-                credit.setWordWrap(False)
-                credit.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            credit = QLabel(f"نظام الماركت المحاسبي  |  {self._safe_credit()}")
+            credit.setWordWrap(False)
+            credit.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            footer_layout.addWidget(credit, 1)
+            call = QPushButton("☎ 772233564")
+            call.setObjectName("footerButton")
+            call.clicked.connect(lambda: open_url(BRANDING.phone_uri))
+            footer_layout.addWidget(call)
+            wa = QPushButton("◉ واتساب")
+            wa.setObjectName("footerButton")
+            wa.clicked.connect(lambda: open_url(BRANDING.whatsapp_uri))
+            footer_layout.addWidget(wa)
             self.clock_label = QLabel()
-            self.clock_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.clock_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             self.clock_label.setObjectName("footerClock")
             footer_layout.addWidget(self.clock_label, 0)
             self._clock_timer = QTimer(self)
