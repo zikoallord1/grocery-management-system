@@ -436,9 +436,17 @@ class MainWindow(QMainWindow):
         #contentScroll { padding: 0; }
         #referencePanel QTableWidget, #referencePanel QTableView { min-height: 180px; }
         #actionButton:hover { background: #eaf5ff; border-color: #72b4ec; }
-        #footerPanel { min-height: 40px; max-height: 44px; background: #003f7d; border-radius: 9px; }
+        #footerPanel { min-height: 52px; max-height: 58px; background: #003f7d; border-radius: 9px; }
         #footerPanel QLabel { color: #dcecff; font-size: 11px; }
-        #footerButton { background: transparent; color: #ffffff; border: none; min-height: 30px; }
+        #footerButton { background: #07539d; color: #ffffff; border: 1px solid #2b8de8; border-radius: 8px; min-height: 34px; padding: 0 12px; font-weight: 900; }
+        #footerButton:hover { background: #087cf2; }
+        #successButton { background: #0aa56b; color: #ffffff; border: none; font-weight: 900; }
+        #successButton:hover { background: #078c5b; }
+        #dangerButton { background: #ef4444; color: #ffffff; border: none; font-weight: 900; }
+        #dangerButton:hover { background: #dc2626; }
+        #summaryValue { color: #064b91; font-size: 17px; font-weight: 900; }
+        #itemDetailsPanel { background: #f7fbff; border: 1px solid #cfe1f3; border-radius: 8px; }
+        #barcodeSearch { min-height: 42px; font-size: 14px; font-weight: 700; }
         QGroupBox { background: #ffffff; border: 1px solid #cfe1f3; border-radius: 8px; margin-top: 12px; padding: 10px; font-weight: 900; color: #064b91; }
         QGroupBox::title { subcontrol-origin: margin; right: 12px; padding: 0 6px; background: #ffffff; }
         QCheckBox, QRadioButton { spacing: 7px; color: #164f83; }
