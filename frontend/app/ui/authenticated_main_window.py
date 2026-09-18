@@ -56,7 +56,7 @@ class AuthenticatedMainWindow(MainWindow):
 
         root_layout = self.centralWidget().layout()
         footer = root_layout.itemAt(root_layout.count() - 1).widget()
-        footer.setMaximumHeight(36)
+        footer.setMaximumHeight(58)
         footer_layout = footer.layout()
         if footer_layout is not None:
             footer_layout.setContentsMargins(8, 2, 8, 2)
