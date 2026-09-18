@@ -56,7 +56,7 @@ def main():
     initialize_database()
 
     app = QApplication(sys.argv)
-    app.setApplicationName("نظام إدارة البقالات")
+    app.setApplicationName("نظام الماركت المحاسبي")
     app.setLayoutDirection(Qt.RightToLeft)
     setup_application_font(app)
 
