@@ -28,7 +28,7 @@ class FirstRunWizard(QDialog):
         root.addWidget(title)
 
         intro = QLabel(
-            "مرحبًا بك في نظام إدارة البقالات.\n"
+            "مرحبًا بك في نظام الماركت المحاسبي.\n"
             "هذه الشاشة تظهر مرة واحدة بعد التثبيت لتأكيد الإعداد الأولي قبل تسجيل الدخول."
         )
         intro.setWordWrap(True)

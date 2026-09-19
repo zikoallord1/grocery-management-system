@@ -14,7 +14,7 @@ class LicenseDialog(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("ترخيص نظام إدارة البقالات")
+        self.setWindowTitle("ترخيص نظام الماركت المحاسبي")
         self.resize(620, 420)
         self.setLayoutDirection(Qt.RightToLeft)
         self._build()

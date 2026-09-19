@@ -156,7 +156,7 @@ class MainWindow(QMainWindow):
         self._notification_label.setParent(self._notification_viewport)
         root_layout.addWidget(ticker)
         self._notification_messages = [
-            "مرحبًا بك في نظام إدارة البقالات — تابع المبيعات والمشتريات والمخزون والحسابات من مكان واحد",
+            "مرحبًا بك في نظام الماركت المحاسبي — تابع المبيعات والمشتريات والمخزون والحسابات من مكان واحد",
             "تذكير: راجع الأصناف منخفضة المخزون قبل بدء يوم البيع",
             "تنبيه: احفظ الفواتير واعتمد العمليات المالية بعد مراجعتها",
             f"{BRANDING.program_name} — {BRANDING.designer_credit}",

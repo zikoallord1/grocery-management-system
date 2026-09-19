@@ -27,14 +27,15 @@ def test_main_window_builds_in_offscreen_mode():
     initialize_database()
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
-    assert window.windowTitle() == "نظام إدارة البقالات"
+    assert window.windowTitle() == "نظام الماركت المحاسبي"
     assert window.layoutDirection() == Qt.RightToLeft
     assert not hasattr(window, "barcode_scanner")
     assert window._notification_label.text()
-    navigation_scroll = window.centralWidget().layout().itemAt(1).widget()
+    shell = window.centralWidget().layout().itemAt(2).layout()
+    navigation_scroll = shell.itemAt(1).widget()
     assert isinstance(navigation_scroll, QScrollArea)
     assert navigation_scroll.widget().objectName() == "topNavigation"
-    assert window.centralWidget().layout().itemAt(2).widget().objectName() == "notificationBar"
+    assert window.centralWidget().layout().itemAt(1).widget().objectName() == "notificationBar"
 
     for name in [
         "المخزون",

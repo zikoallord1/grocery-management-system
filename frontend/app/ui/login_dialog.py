@@ -17,7 +17,7 @@ class LoginDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("تسجيل الدخول — نظام إدارة البقالات")
+        self.setWindowTitle("تسجيل الدخول — نظام الماركت المحاسبي")
         self.setMinimumSize(430, 300)
         self.setLayoutDirection(Qt.RightToLeft)
         self.setModal(True)

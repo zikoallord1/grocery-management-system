@@ -35,7 +35,7 @@ def show_invoice_preview(parent, *, title, document_no, business_date, party_lab
         <table class='totals'><tr><th>الإجمالي</th><td>{DecimalLike(total):,.2f}</td></tr>
         <tr><th>المدفوع</th><td>{DecimalLike(paid):,.2f}</td></tr>
         <tr><th>المتبقي</th><td>{DecimalLike(credit):,.2f}</td></tr></table>
-        <div class='brand'>نظام إدارة البقالات<br>تصميم وتنفيذ المهندس / زكريا الحاج<br>لطلب البرنامج او تقديم المساعدة او طلب برامج اخرى التواصل على الرقم 772233564</div>
+        <div class='brand'>نظام الماركت المحاسبي<br>تصميم وتنفيذ المهندس / زكريا الحاج<br>لطلب البرنامج او تقديم المساعدة او طلب برامج اخرى التواصل على الرقم 772233564</div>
         </body></html>"""
         document.setHtml(html)
         document.print_(target_printer)
