@@ -13,6 +13,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Button
+import android.widget.ImageButton
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
@@ -35,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var navStock: TextView
     private lateinit var navReports: TextView
     private lateinit var navCameras: TextView
+    private val navItems = mutableListOf<TextView>()
     private val prefs by lazy { getSharedPreferences("mobile", MODE_PRIVATE) }
     private val cameraPrefs by lazy { getSharedPreferences("cameras", MODE_PRIVATE) }
 
@@ -88,7 +91,7 @@ class MainActivity : AppCompatActivity() {
             layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
         val titleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
-        titleBox.addView(text("نظام البقالة المحاسبي", 21f, Color.WHITE, true))
+        titleBox.addView(text("نظام الماركت المحاسبي", 18f, Color.WHITE, true))
         titleBox.addView(text("إدارة شاملة .. لمتجرك بكل سهولة", 12f, Color.rgb(220, 235, 255)))
         headerRow.addView(titleBox, LinearLayout.LayoutParams(0, -2, 1f))
         val bell = text("🔔", 22f, Color.WHITE, false).apply { gravity = Gravity.CENTER }
@@ -122,36 +125,56 @@ class MainActivity : AppCompatActivity() {
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        val nav = LinearLayout(this).apply {
+        val workspace = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(4, 5, 4, 5)
-            setBackgroundColor(Color.WHITE)
-            elevation = 8f
+            gravity = Gravity.TOP
             layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
-        navHome = addNavButton(nav, "⌂\nالرئيسية") { showHome() }
-        navSales = addNavButton(nav, "🛒\nالمبيعات") { showModule("المبيعات", "متابعة المبيعات وحركات البيع.") }
-        navStock = addNavButton(nav, "▣\nالمخزون") { showModule("المخزون", "متابعة الأصناف والكميات والتنبيهات.") }
-        navReports = addNavButton(nav, "▥\nالتقارير") { showModule("التقارير", "التقارير والملخصات التشغيلية والمالية.") }
-        navCameras = addNavButton(nav, "▣\nالكاميرات") { showCameras() }
-        root.addView(nav, LinearLayout.LayoutParams(-1, 70))
+        val navScroll = ScrollView(this).apply {
+            isFillViewport = true
+            background = rounded(Color.WHITE, Color.rgb(205, 224, 244), 0f)
+        }
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.TOP
+            setPadding(5, 6, 5, 8)
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+        }
+        navHome = addNavButton(nav, "الرئيسية") { showHome() }
+        navSales = addNavButton(nav, "المبيعات") { showSales() }
+        addNavButton(nav, "المشتريات") { showModule("المشتريات", "إدارة فواتير الشراء والموردين والمدفوعات.") }
+        addNavButton(nav, "الأصناف") { showModule("الأصناف", "إدارة الأصناف والوحدات والباركود والأسعار.") }
+        navStock = addNavButton(nav, "المخزون") { showModule("المخزون", "متابعة الكميات والحركات والتنبيهات.") }
+        addNavButton(nav, "العملاء") { showModule("العملاء", "إدارة العملاء وكشوف الحساب والتحصيلات.") }
+        addNavButton(nav, "الموردون") { showModule("الموردون", "إدارة الموردين وكشوف الحساب والمدفوعات.") }
+        addNavButton(nav, "المصروفات") { showModule("المصروفات", "تسجيل ومراجعة المصروفات ووسائل الدفع.") }
+        addNavButton(nav, "الصناديق\nوالحسابات") { showModule("الصناديق والحسابات", "متابعة الحسابات والتحويلات المالية.") }
+        addNavButton(nav, "المرتجعات") { showModule("المرتجعات", "إرجاع العمليات وفق الصلاحيات دون حذف الأصل.") }
+        navReports = addNavButton(nav, "التقارير") { showModule("التقارير", "تقارير فعلية بفترة وتصفية قابلة للتخصيص.") }
+        addNavButton(nav, "الإعدادات") { showModule("الإعدادات", "إعدادات السوق والمستخدمين والترخيص.") }
+        navCameras = addNavButton(nav, "الكاميرات") { showCameras() }
+        navScroll.addView(nav)
+        workspace.addView(navScroll, LinearLayout.LayoutParams(112, -1))
+        workspace.addView(scroll, LinearLayout.LayoutParams(0, 0, 1f))
+        root.removeView(scroll)
+        root.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
     }
 
     private fun addNavButton(parent: LinearLayout, label: String, action: () -> Unit): TextView {
-        val button = text(label, 10.5f, Color.rgb(28, 70, 120), true).apply {
+        val button = text(label, 11f, Color.rgb(28, 70, 120), true).apply {
             gravity = Gravity.CENTER
-            setPadding(2, 3, 2, 3)
+            setPadding(2, 5, 2, 5)
             setOnClickListener { action() }
             background = rounded(Color.WHITE, Color.TRANSPARENT, 12f)
         }
-        parent.addView(button, LinearLayout.LayoutParams(0, -1, 1f))
+        parent.addView(button, LinearLayout.LayoutParams(-1, 52))
+        navItems.add(button)
         return button
     }
 
     private fun markNav(active: TextView) {
-        listOf(navHome, navSales, navStock, navReports, navCameras).forEach {
+        navItems.forEach {
             it.background = rounded(if (it == active) blue else Color.WHITE, Color.TRANSPARENT, 12f)
             it.setTextColor(if (it == active) Color.WHITE else Color.rgb(28, 70, 120))
         }
@@ -194,7 +217,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(18, 18, 18, 18)
             background = rounded(darkBlue, Color.TRANSPARENT, 20f)
         }
-        hero.addView(text("نظام البقالة المحاسبي", 24f, Color.WHITE, true).apply { gravity = Gravity.CENTER })
+        hero.addView(text("نظام الماركت المحاسبي", 20f, Color.WHITE, true).apply { gravity = Gravity.CENTER })
         hero.addView(text("إدارة متكاملة .. مبيعات ومخزون ومحاسبة وكاميرات مراقبة", 12f, Color.rgb(220, 235, 255)).apply { gravity = Gravity.CENTER })
         content.addView(hero, LinearLayout.LayoutParams(-1, 112))
 
@@ -218,6 +241,77 @@ class MainActivity : AppCompatActivity() {
                 gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
                 background = rounded(Color.WHITE, Color.rgb(215, 230, 246), 14f)
                 setOnClickListener { if (label == "كاميرات المراقبة") showCameras() else if (label == "تقارير") showModule("التقارير", "التقارير والملخصات التشغيلية والمالية.") else showModule(label, "متابعة العملية وإدارتها من النظام.") }
+            }
+
+            private fun showSales() {
+                releasePlayers()
+                content.removeAllViews()
+                markNav(navSales)
+                addSectionTitle("المبيعات", "فاتورة جديدة")
+                val search = EditText(this).apply {
+                    hint = "ابحث باسم الصنف أو امسح الباركود"
+                    textSize = 14f
+                    setSingleLine(true)
+                    setPadding(16, 0, 16, 0)
+                    layoutDirection = View.LAYOUT_DIRECTION_RTL
+                    background = rounded(Color.WHITE, Color.rgb(170, 201, 232), 14f)
+                }
+                content.addView(search, LinearLayout.LayoutParams(-1, 52).apply { setMargins(0, 4, 0, 8) })
+                val cart = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(12, 8, 12, 8)
+                    background = rounded(Color.WHITE, Color.rgb(210, 228, 247), 16f)
+                }
+                cart.addView(text("تفاصيل الفاتورة", 15f, textBlue, true))
+                cart.addView(text("لم تتم إضافة أصناف بعد. استخدم البحث أو قارئ الباركود لإضافة الصنف.", 13f, Color.DKGRAY).apply {
+                    setPadding(0, 12, 0, 12)
+                })
+                val line = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    layoutDirection = View.LAYOUT_DIRECTION_RTL
+                }
+                line.addView(text("الكمية", 12f, Color.DKGRAY, true), LinearLayout.LayoutParams(0, 42, 1f))
+                line.addView(EditText(this).apply { hint = "1"; inputType = 2; gravity = Gravity.CENTER; setSingleLine(true) }, LinearLayout.LayoutParams(58, 42))
+                line.addView(text("السعر", 12f, Color.DKGRAY, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, 42, 1f))
+                line.addView(EditText(this).apply { hint = "0.00"; inputType = 2 or 8192; gravity = Gravity.CENTER; setSingleLine(true) }, LinearLayout.LayoutParams(82, 42))
+                cart.addView(line)
+                content.addView(cart, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, 8) })
+                val totals = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(14, 10, 14, 10)
+                    background = rounded(darkBlue, Color.TRANSPARENT, 16f)
+                }
+                listOf("الإجمالي", "المدفوع", "المتبقي").forEach { label ->
+                    val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; layoutDirection = View.LAYOUT_DIRECTION_RTL }
+                    row.addView(text(label, 14f, Color.WHITE, true), LinearLayout.LayoutParams(0, 38, 1f))
+                    row.addView(text("0.00", 14f, Color.WHITE, true).apply { gravity = Gravity.LEFT or Gravity.CENTER_VERTICAL }, LinearLayout.LayoutParams(100, 38))
+                    totals.addView(row)
+                }
+                totals.addView(text("طرق الدفع (يمكن الجمع بينها)", 13f, Color.rgb(220, 235, 255), true).apply { setPadding(0, 8, 0, 4) })
+                val methods = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; layoutDirection = View.LAYOUT_DIRECTION_RTL }
+                listOf("نقدًا", "محفظة إلكترونية", "آجل", "تحويل").forEach { method ->
+                    val b = text(method, 11f, textBlue, true).apply {
+                        gravity = Gravity.CENTER
+                        background = rounded(Color.WHITE, Color.TRANSPARENT, 12f)
+                        setOnClickListener { setBackgroundColor(Color.rgb(210, 235, 255)) }
+                    }
+                    methods.addView(b, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 2, 2, 2) })
+                }
+                totals.addView(methods)
+                content.addView(totals, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, 8) })
+                val camerasToggle = text("كاميرات المراقبة  ▾", 14f, blue, true).apply {
+                    gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
+                    background = rounded(Color.WHITE, Color.rgb(205, 224, 244), 14f)
+                    setPadding(14, 0, 14, 0)
+                }
+                val cameraHint = text("قسم اختياري قابل للطي — لا يعرض تلقائيًا أثناء البيع.", 12f, Color.DKGRAY).apply {
+                    setPadding(14, 10, 14, 10)
+                    visibility = View.GONE
+                }
+                camerasToggle.setOnClickListener { cameraHint.visibility = if (cameraHint.visibility == View.GONE) View.VISIBLE else View.GONE }
+                content.addView(camerasToggle, LinearLayout.LayoutParams(-1, 48))
+                content.addView(cameraHint, LinearLayout.LayoutParams(-1, -2))
             }
             val lp = LinearLayout.LayoutParams(-1, 54); lp.setMargins(0, 5, 0, 0); actions.addView(b, lp)
         }

@@ -7,7 +7,7 @@
         android:allowBackup="true"
         android:icon="@drawable/ic_grocery_logo"
         android:roundIcon="@drawable/ic_grocery_logo"
-        android:label="نظام البقالة المحاسبي"
+        android:label="نظام الماركت المحاسبي"
         android:supportsRtl="true"
         android:theme="@style/Theme.GroceryMobile">
         <activity
