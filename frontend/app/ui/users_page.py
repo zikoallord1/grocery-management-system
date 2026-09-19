@@ -7,6 +7,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QComboBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QVBoxLayout
 
 from backend.app.core.database import DATA_DIR
+from backend.app.core.identity import audit_current_actor
+from backend.app.core.database import get_session
+from uuid import uuid4
 
 
 USERS_FILE = DATA_DIR / "users.json"
@@ -165,6 +168,12 @@ class UsersPage(QFrame):
         self._users.append({"username": username, "full_name": full_name, "password_hash": self._hash_password(password), "role": self.role.currentText(), "active": True})
         try:
             self._write_users()
+            session = get_session()
+            try:
+                audit_current_actor(session, operation_id=f"USER:{uuid4()}", action="USER_CREATED", entity_type="USER", details={"username": username, "role": self.role.currentText()})
+                session.commit()
+            finally:
+                session.close()
         except OSError as exc:
             self._users.pop()
             self.status.setText(f"تعذر حفظ المستخدم على الجهاز: {exc}")

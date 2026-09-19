@@ -6,6 +6,9 @@ from PySide6.QtWidgets import QComboBox, QFormLayout, QFrame, QGridLayout, QLine
 from backend.app.core.database import DATA_DIR
 from backend.app.core.demo_data import seed_demo_data, prepare_for_delivery
 from backend.app.core.identity import current_actor
+from backend.app.core.identity import audit_current_actor
+from backend.app.core.database import get_session
+from uuid import uuid4
 
 
 SETTINGS_FILE = DATA_DIR / "settings.json"
@@ -66,10 +69,14 @@ class SettingsPage(QFrame):
         assistant = QPushButton("المساعد الذكي للتشخيص")
         assistant.setObjectName("actionButton")
         assistant.clicked.connect(self._open_assistant)
+        guide = QPushButton("دليل الاستخدام")
+        guide.setObjectName("actionButton")
+        guide.clicked.connect(self._open_guide)
         access_grid.addWidget(users, 0, 0)
         access_grid.addWidget(permissions, 0, 1)
         access_grid.addWidget(license_button, 1, 0, 1, 2)
         access_grid.addWidget(assistant, 2, 0, 1, 2)
+        access_grid.addWidget(guide, 3, 0, 1, 2)
         layout.addLayout(access_grid)
 
         test_box = QFrame()
@@ -141,6 +148,16 @@ class SettingsPage(QFrame):
             "لا ينفذ أي تغيير ولا يتجاوز الصلاحيات أو الترخيص.",
         )
 
+    def _open_guide(self):
+        QMessageBox.information(
+            self,
+            "دليل الاستخدام",
+            "ابدأ بتهيئة بيانات البقالة والوحدات والأصناف والمخازن، ثم أضف المستخدمين "
+            "والصلاحيات. استخدم المبيعات والمشتريات لتسجيل الفواتير، والصناديق للتحويلات، "
+            "والتقارير لاختيار اليوم أو الأسبوع أو الشهر أو فترة مخصصة. لا تحذف الفواتير "
+            "المرحلة؛ استخدم المرتجعات أو العكس وفق الصلاحيات.",
+        )
+
     def _load(self):
         try:
             if SETTINGS_FILE.exists():
@@ -161,6 +178,12 @@ class SettingsPage(QFrame):
         try:
             SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
             SETTINGS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            session = get_session()
+            try:
+                audit_current_actor(session, operation_id=f"SETTINGS:{uuid4()}", action="SETTINGS_UPDATED", entity_type="SYSTEM_SETTINGS")
+                session.commit()
+            finally:
+                session.close()
         except OSError as exc:
             self.status.setText(f"تعذر حفظ الإعدادات: {exc}")
             return

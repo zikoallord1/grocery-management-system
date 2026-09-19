@@ -4,6 +4,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from backend.app.core.database import DATA_DIR
+from backend.app.core.identity import audit_current_actor
+from backend.app.core.database import get_session
+from uuid import uuid4
 
 
 PERMISSIONS_FILE = DATA_DIR / "permissions.json"
@@ -176,6 +179,18 @@ class PermissionsPage(QFrame):
         try:
             PERMISSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
             PERMISSIONS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            session = get_session()
+            try:
+                audit_current_actor(
+                    session,
+                    operation_id=f"PERMISSIONS:{uuid4()}",
+                    action="PERMISSIONS_UPDATED",
+                    entity_type="ROLE_PERMISSIONS",
+                    details={"role": self.role.currentText()},
+                )
+                session.commit()
+            finally:
+                session.close()
         except OSError as exc:
             self.status.setText(f"تعذر حفظ الصلاحيات: {exc}")
             return

@@ -10,7 +10,9 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+    QDateEdit,
 )
+from PySide6.QtCore import QDate
 
 from backend.app.core.database import get_session
 from backend.app.modules.reports.service import ReportService
@@ -65,6 +67,17 @@ class ReportsPage(QWidget):
             button = QPushButton(text)
             button.clicked.connect(slot)
             buttons.addWidget(button)
+        self.date_from = QDateEdit(QDate.currentDate())
+        self.date_from.setCalendarPopup(True)
+        self.date_to = QDateEdit(QDate.currentDate())
+        self.date_to.setCalendarPopup(True)
+        custom = QPushButton("تطبيق فترة مخصصة")
+        custom.clicked.connect(self.show_custom)
+        buttons.addWidget(QLabel("من"))
+        buttons.addWidget(self.date_from)
+        buttons.addWidget(QLabel("إلى"))
+        buttons.addWidget(self.date_to)
+        buttons.addWidget(custom)
 
         back = QPushButton("العودة إلى الرئيسية")
         back.clicked.connect(self.back_requested.emit)
@@ -148,3 +161,11 @@ class ReportsPage(QWidget):
 
     def refresh(self):
         self.show_today()
+
+    def show_custom(self):
+        start = self.date_from.date().toPython()
+        end = self.date_to.date().toPython()
+        if start > end:
+            self.period_label.setText("الفترة غير صحيحة: يجب أن يسبق تاريخ البداية تاريخ النهاية.")
+            return
+        self._load(start, end, "فترة مخصصة")
