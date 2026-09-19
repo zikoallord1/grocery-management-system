@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import platform
+import shutil
+import sys
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -79,7 +81,22 @@ def ensure_trial_start() -> date:
 
 def load_public_key(path: Path = PUBLIC_KEY_FILE) -> Ed25519PublicKey | None:
     env_key = os.getenv("GROCERY_LICENSE_PUBLIC_KEY")
-    data = env_key.encode("utf-8") if env_key else (path.read_bytes() if path.exists() else None)
+    if env_key:
+        data = env_key.encode("utf-8")
+    elif path.exists():
+        data = path.read_bytes()
+    else:
+        # The Windows release bundles only the public verification key. On the
+        # first frozen launch, copy it to the exact per-user location required
+        # by the licensing contract so existing customer licenses remain valid.
+        bundle_root = Path(getattr(sys, "_MEIPASS", ""))
+        bundled = bundle_root / "license" / "public_key.pem" if bundle_root else None
+        if bundled and bundled.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(bundled, path)
+            data = path.read_bytes()
+        else:
+            data = None
     if not data:
         return None
     key = serialization.load_pem_public_key(data)
