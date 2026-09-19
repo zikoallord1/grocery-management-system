@@ -134,6 +134,7 @@ def initialize_database():
     from backend.app.modules.finance import models as finance_models  # noqa: F401
     from backend.app.modules.finance import revenue as revenue_model  # noqa: F401
     from . import daily_operations  # noqa: F401
+    from . import sync_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     AuditLog.__table__.create(bind=engine, checkfirst=True)

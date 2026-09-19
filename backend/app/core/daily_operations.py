@@ -74,7 +74,7 @@ def _sqlite_backup(destination_db: Path) -> None:
 
 def create_daily_backup(business_date: str) -> Path:
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     temporary_db = BACKUP_DIR / f".daily_close_{business_date}_{stamp}.db"
     archive_path = BACKUP_DIR / f"daily_close_{business_date}_{stamp}.zip"
 
@@ -104,7 +104,9 @@ def close_previous_day(now: datetime | None = None) -> Path | None:
             ).scalar_one_or_none()
 
             if record is not None and record.status == "CLOSED" and record.backup_path:
-                return Path(record.backup_path)
+                existing_backup = Path(record.backup_path)
+                if existing_backup.exists():
+                    return existing_backup
 
             if record is None:
                 record = DailyClose(

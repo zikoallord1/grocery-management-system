@@ -8,6 +8,8 @@ from uuid import uuid4
 from sqlalchemy import delete, text, select
 
 from backend.app.core.database import DATA_DIR, Base, SessionLocal, initialize_database
+from backend.app.core.access_control import Actor, AuthorizationError
+from backend.app.core.audit_service import AuditService
 from backend.app.core.models import (
     Category, Customer, CustomerAccountMovement, CustomerPayment, Product,
     ProductBarcode, Purchase, PurchaseItem, PurchasePayment, Sale, SaleItem,
@@ -134,12 +136,25 @@ def seed_demo_data() -> dict[str, int]:
         session.close()
 
 
-def prepare_for_delivery() -> None:
+def prepare_for_delivery(*, actor: Actor | None = None, confirmation: str | None = None) -> None:
     """Remove business/test data while preserving authentication, license and schema."""
+    if actor is None or actor.role not in {"admin", "مدير النظام"}:
+        raise AuthorizationError("تهيئة النظام تتطلب مدير النظام.")
+    if confirmation != "تهيئة النظام":
+        raise ValueError("يجب تأكيد عبارة تهيئة النظام صراحة.")
     initialize_database()
     session = SessionLocal()
     keep = {"users", "roles", "permissions", "user_roles", "role_permissions", "audit_logs", "alembic_version"}
     try:
+        AuditService(session).record(
+            operation_id=f"PREPARE_DELIVERY:{uuid4()}",
+            event_type="SYSTEM_MAINTENANCE",
+            action="PREPARE_DELIVERY",
+            user_id=actor.user_id,
+            description="تهيئة النظام قبل التسليم",
+            details={"result": "REQUESTED"},
+        )
+        session.commit()
         session.execute(text("PRAGMA foreign_keys=OFF"))
         tables = list(Base.metadata.tables)
         for table_name in reversed(tables):

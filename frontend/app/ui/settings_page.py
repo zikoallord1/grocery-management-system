@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QComboBox, QFormLayout, QFrame, QGridLayout, QLine
 
 from backend.app.core.database import DATA_DIR
 from backend.app.core.demo_data import seed_demo_data, prepare_for_delivery
+from backend.app.core.identity import current_actor
 
 
 SETTINGS_FILE = DATA_DIR / "settings.json"
@@ -62,9 +63,13 @@ class SettingsPage(QFrame):
         license_button = QPushButton("تسجيل النسخة / الترخيص")
         license_button.setObjectName("actionButton")
         license_button.clicked.connect(self._open_license)
+        assistant = QPushButton("المساعد الذكي للتشخيص")
+        assistant.setObjectName("actionButton")
+        assistant.clicked.connect(self._open_assistant)
         access_grid.addWidget(users, 0, 0)
         access_grid.addWidget(permissions, 0, 1)
         access_grid.addWidget(license_button, 1, 0, 1, 2)
+        access_grid.addWidget(assistant, 2, 0, 1, 2)
         layout.addLayout(access_grid)
 
         test_box = QFrame()
@@ -128,6 +133,14 @@ class SettingsPage(QFrame):
         except Exception as exc:
             QMessageBox.critical(self, "الترخيص", f"تعذر فتح شاشة الترخيص.\n\n{exc}")
 
+    def _open_assistant(self):
+        QMessageBox.information(
+            self,
+            "المساعد الذكي",
+            "المساعد المحلي يشرح الأخطاء والتقارير ويقترح خطوات المعالجة. "
+            "لا ينفذ أي تغيير ولا يتجاوز الصلاحيات أو الترخيص.",
+        )
+
     def _load(self):
         try:
             if SETTINGS_FILE.exists():
@@ -167,7 +180,7 @@ class SettingsPage(QFrame):
         if answer != QMessageBox.Yes:
             return
         try:
-            prepare_for_delivery()
+            prepare_for_delivery(actor=current_actor(), confirmation="تهيئة النظام")
             self.status.setText("تمت تهيئة النظام للتسليم. البيانات التجريبية وبيانات العمل حُذفت مع إبقاء المستخدمين والترخيص.")
             self.settings_changed.emit()
         except Exception as exc:

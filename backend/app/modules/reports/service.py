@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 from decimal import Decimal
 
 from sqlalchemy import case, func, select
@@ -28,6 +29,16 @@ class DashboardSummary:
     customer_receivables: Decimal
     supplier_payables: Decimal
     gross_profit: Decimal
+
+
+@dataclass(frozen=True)
+class StatementRow:
+    business_date: str
+    movement_type: str
+    amount: Decimal
+    direction: str
+    reference_type: str | None
+    reference_id: str | None
 
 
 class ReportService:
@@ -190,6 +201,97 @@ class ReportService:
             func.coalesce(balance.c.quantity, 0) <= Product.minimum_stock,
         )
         return int(self._session.execute(statement).scalar_one())
+
+    def customer_statement(
+        self,
+        *,
+        customer_id: int,
+        date_from: str,
+        date_to: str,
+        fields: tuple[str, ...] | None = None,
+    ) -> list[dict[str, Any]]:
+        rows = self._session.execute(
+            select(CustomerAccountMovement)
+            .where(
+                CustomerAccountMovement.customer_id == customer_id,
+                CustomerAccountMovement.business_date >= date_from,
+                CustomerAccountMovement.business_date <= date_to,
+            )
+            .order_by(CustomerAccountMovement.business_date, CustomerAccountMovement.id)
+        ).scalars()
+        return self._project_statement(rows, fields)
+
+    def supplier_statement(
+        self,
+        *,
+        supplier_id: int,
+        date_from: str,
+        date_to: str,
+        fields: tuple[str, ...] | None = None,
+    ) -> list[dict[str, Any]]:
+        rows = self._session.execute(
+            select(SupplierAccountMovement)
+            .where(
+                SupplierAccountMovement.supplier_id == supplier_id,
+                SupplierAccountMovement.business_date >= date_from,
+                SupplierAccountMovement.business_date <= date_to,
+            )
+            .order_by(SupplierAccountMovement.business_date, SupplierAccountMovement.id)
+        ).scalars()
+        return self._project_statement(rows, fields)
+
+    def cashbox_statement(
+        self,
+        *,
+        cashbox_id: int,
+        date_from: str,
+        date_to: str,
+        fields: tuple[str, ...] | None = None,
+    ) -> list[dict[str, Any]]:
+        rows = self._session.execute(
+            select(CashboxMovement)
+            .where(
+                CashboxMovement.cashbox_id == cashbox_id,
+                CashboxMovement.business_date >= date_from,
+                CashboxMovement.business_date <= date_to,
+            )
+            .order_by(CashboxMovement.business_date, CashboxMovement.id)
+        ).scalars()
+        return self._project_statement(rows, fields)
+
+    @staticmethod
+    def _project_statement(rows, fields: tuple[str, ...] | None) -> list[dict[str, Any]]:
+        allowed = {
+            "business_date",
+            "movement_type",
+            "amount",
+            "direction",
+            "reference_type",
+            "reference_id",
+        }
+        selected = tuple(fields or (
+            "business_date",
+            "movement_type",
+            "amount",
+            "direction",
+            "reference_type",
+            "reference_id",
+        ))
+        unknown = set(selected) - allowed
+        if unknown:
+            raise ValueError(f"حقول كشف غير مدعومة: {', '.join(sorted(unknown))}")
+        result = []
+        for row in rows:
+            values = {
+                "business_date": row.business_date,
+                "movement_type": row.movement_type,
+                "amount": Decimal(str(row.amount)),
+                "direction": row.direction,
+                "reference_type": row.reference_type,
+                "reference_id": row.reference_id,
+            }
+            result.append({field: values[field] for field in selected})
+        return result
 
     def _sum(self, statement) -> Decimal:
         return Decimal(str(self._session.execute(statement).scalar_one()))

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QFrame, QMessageBox, QPushB
 from backend.app.core.database import initialize_database
 from backend.app.core.daily_operations import DailyMaintenanceController
 from backend.app.core.licensing import verify_license
+from backend.app.core.identity import actor_from_user, clear_current_actor, set_current_actor
 from backend.app.mobile_server import start_mobile_server
 from frontend.app.ui.font_setup import setup_application_font, apply_font_to_window
 from frontend.app.ui.license_dialog import LicenseDialog
@@ -88,6 +89,7 @@ def main():
         if login.exec() != QDialog.DialogCode.Accepted:
             return 0
         user = getattr(login, "authenticated_user",None) or getattr(login, "user", None)
+        identity_token = set_current_actor(actor_from_user(user or {}))
         window = AuthenticatedMainWindow(user)
         _add_admin_modules(window)
         apply_font_to_window(window, app)
@@ -109,6 +111,7 @@ def main():
         app.processEvents()
         while window.isVisible():
             app.processEvents()
+        clear_current_actor(identity_token)
         if not logged_out["value"]:
             return 0
 
