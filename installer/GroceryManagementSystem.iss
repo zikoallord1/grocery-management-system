@@ -1,6 +1,6 @@
-#define MyAppName "نظام البقالة المحاسبي"
+#define MyAppName "نظام الماركت المحاسبي"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "Grocery Management System"
+#define MyAppPublisher "المهندس : زكريا الحاج"
 #define MyAppExeName "GroceryManagementSystem.exe"
 
 [Setup]
@@ -29,4 +29,4 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\GroceryManagementSystem.ico"
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "تشغيل نظام البقالة المحاسبي"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "تشغيل نظام الماركت المحاسبي"; Flags: nowait postinstall skipifsilent
