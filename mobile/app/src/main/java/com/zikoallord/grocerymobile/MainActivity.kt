@@ -243,80 +243,82 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener { if (label == "كاميرات المراقبة") showCameras() else if (label == "تقارير") showModule("التقارير", "التقارير والملخصات التشغيلية والمالية.") else showModule(label, "متابعة العملية وإدارتها من النظام.") }
             }
 
-            private fun showSales() {
-                releasePlayers()
-                content.removeAllViews()
-                markNav(navSales)
-                addSectionTitle("المبيعات", "فاتورة جديدة")
-                val search = EditText(this).apply {
-                    hint = "ابحث باسم الصنف أو امسح الباركود"
-                    textSize = 14f
-                    setSingleLine(true)
-                    setPadding(16, 0, 16, 0)
-                    layoutDirection = View.LAYOUT_DIRECTION_RTL
-                    background = rounded(Color.WHITE, Color.rgb(170, 201, 232), 14f)
-                }
-                content.addView(search, LinearLayout.LayoutParams(-1, 52).apply { setMargins(0, 4, 0, 8) })
-                val cart = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(12, 8, 12, 8)
-                    background = rounded(Color.WHITE, Color.rgb(210, 228, 247), 16f)
-                }
-                cart.addView(text("تفاصيل الفاتورة", 15f, textBlue, true))
-                cart.addView(text("لم تتم إضافة أصناف بعد. استخدم البحث أو قارئ الباركود لإضافة الصنف.", 13f, Color.DKGRAY).apply {
-                    setPadding(0, 12, 0, 12)
-                })
-                val line = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    layoutDirection = View.LAYOUT_DIRECTION_RTL
-                }
-                line.addView(text("الكمية", 12f, Color.DKGRAY, true), LinearLayout.LayoutParams(0, 42, 1f))
-                line.addView(EditText(this).apply { hint = "1"; inputType = 2; gravity = Gravity.CENTER; setSingleLine(true) }, LinearLayout.LayoutParams(58, 42))
-                line.addView(text("السعر", 12f, Color.DKGRAY, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, 42, 1f))
-                line.addView(EditText(this).apply { hint = "0.00"; inputType = 2 or 8192; gravity = Gravity.CENTER; setSingleLine(true) }, LinearLayout.LayoutParams(82, 42))
-                cart.addView(line)
-                content.addView(cart, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, 8) })
-                val totals = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(14, 10, 14, 10)
-                    background = rounded(darkBlue, Color.TRANSPARENT, 16f)
-                }
-                listOf("الإجمالي", "المدفوع", "المتبقي").forEach { label ->
-                    val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; layoutDirection = View.LAYOUT_DIRECTION_RTL }
-                    row.addView(text(label, 14f, Color.WHITE, true), LinearLayout.LayoutParams(0, 38, 1f))
-                    row.addView(text("0.00", 14f, Color.WHITE, true).apply { gravity = Gravity.LEFT or Gravity.CENTER_VERTICAL }, LinearLayout.LayoutParams(100, 38))
-                    totals.addView(row)
-                }
-                totals.addView(text("طرق الدفع (يمكن الجمع بينها)", 13f, Color.rgb(220, 235, 255), true).apply { setPadding(0, 8, 0, 4) })
-                val methods = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; layoutDirection = View.LAYOUT_DIRECTION_RTL }
-                listOf("نقدًا", "محفظة إلكترونية", "آجل", "تحويل").forEach { method ->
-                    val b = text(method, 11f, textBlue, true).apply {
-                        gravity = Gravity.CENTER
-                        background = rounded(Color.WHITE, Color.TRANSPARENT, 12f)
-                        setOnClickListener { setBackgroundColor(Color.rgb(210, 235, 255)) }
-                    }
-                    methods.addView(b, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 2, 2, 2) })
-                }
-                totals.addView(methods)
-                content.addView(totals, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, 8) })
-                val camerasToggle = text("كاميرات المراقبة  ▾", 14f, blue, true).apply {
-                    gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
-                    background = rounded(Color.WHITE, Color.rgb(205, 224, 244), 14f)
-                    setPadding(14, 0, 14, 0)
-                }
-                val cameraHint = text("قسم اختياري قابل للطي — لا يعرض تلقائيًا أثناء البيع.", 12f, Color.DKGRAY).apply {
-                    setPadding(14, 10, 14, 10)
-                    visibility = View.GONE
-                }
-                camerasToggle.setOnClickListener { cameraHint.visibility = if (cameraHint.visibility == View.GONE) View.VISIBLE else View.GONE }
-                content.addView(camerasToggle, LinearLayout.LayoutParams(-1, 48))
-                content.addView(cameraHint, LinearLayout.LayoutParams(-1, -2))
-            }
+
             val lp = LinearLayout.LayoutParams(-1, 54); lp.setMargins(0, 5, 0, 0); actions.addView(b, lp)
         }
         content.addView(actions)
     }
+
+private fun showSales() {
+    releasePlayers()
+    content.removeAllViews()
+    markNav(navSales)
+    addSectionTitle("المبيعات", "فاتورة جديدة")
+    val search = EditText(this).apply {
+        hint = "ابحث باسم الصنف أو امسح الباركود"
+        textSize = 14f
+        setSingleLine(true)
+        setPadding(16, 0, 16, 0)
+        layoutDirection = View.LAYOUT_DIRECTION_RTL
+        background = rounded(Color.WHITE, Color.rgb(170, 201, 232), 14f)
+    }
+    content.addView(search, LinearLayout.LayoutParams(-1, 52).apply { setMargins(0, 4, 0, 8) })
+    val cart = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(12, 8, 12, 8)
+        background = rounded(Color.WHITE, Color.rgb(210, 228, 247), 16f)
+    }
+    cart.addView(text("تفاصيل الفاتورة", 15f, textBlue, true))
+    cart.addView(text("لم تتم إضافة أصناف بعد. استخدم البحث أو قارئ الباركود لإضافة الصنف.", 13f, Color.DKGRAY).apply {
+        setPadding(0, 12, 0, 12)
+    })
+    val line = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        layoutDirection = View.LAYOUT_DIRECTION_RTL
+    }
+    line.addView(text("الكمية", 12f, Color.DKGRAY, true), LinearLayout.LayoutParams(0, 42, 1f))
+    line.addView(EditText(this).apply { hint = "1"; inputType = 2; gravity = Gravity.CENTER; setSingleLine(true) }, LinearLayout.LayoutParams(58, 42))
+    line.addView(text("السعر", 12f, Color.DKGRAY, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, 42, 1f))
+    line.addView(EditText(this).apply { hint = "0.00"; inputType = 2 or 8192; gravity = Gravity.CENTER; setSingleLine(true) }, LinearLayout.LayoutParams(82, 42))
+    cart.addView(line)
+    content.addView(cart, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, 8) })
+    val totals = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(14, 10, 14, 10)
+        background = rounded(darkBlue, Color.TRANSPARENT, 16f)
+    }
+    listOf("الإجمالي", "المدفوع", "المتبقي").forEach { label ->
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; layoutDirection = View.LAYOUT_DIRECTION_RTL }
+        row.addView(text(label, 14f, Color.WHITE, true), LinearLayout.LayoutParams(0, 38, 1f))
+        row.addView(text("0.00", 14f, Color.WHITE, true).apply { gravity = Gravity.LEFT or Gravity.CENTER_VERTICAL }, LinearLayout.LayoutParams(100, 38))
+        totals.addView(row)
+    }
+    totals.addView(text("طرق الدفع (يمكن الجمع بينها)", 13f, Color.rgb(220, 235, 255), true).apply { setPadding(0, 8, 0, 4) })
+    val methods = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; layoutDirection = View.LAYOUT_DIRECTION_RTL }
+    listOf("نقدًا", "محفظة إلكترونية", "آجل", "تحويل").forEach { method ->
+        val b = text(method, 11f, textBlue, true).apply {
+            gravity = Gravity.CENTER
+            background = rounded(Color.WHITE, Color.TRANSPARENT, 12f)
+            setOnClickListener { setBackgroundColor(Color.rgb(210, 235, 255)) }
+        }
+        methods.addView(b, LinearLayout.LayoutParams(0, 44, 1f).apply { setMargins(2, 2, 2, 2) })
+    }
+    totals.addView(methods)
+    content.addView(totals, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, 8) })
+    val camerasToggle = text("كاميرات المراقبة  ▾", 14f, blue, true).apply {
+        gravity = Gravity.RIGHT or Gravity.CENTER_VERTICAL
+        background = rounded(Color.WHITE, Color.rgb(205, 224, 244), 14f)
+        setPadding(14, 0, 14, 0)
+    }
+    val cameraHint = text("قسم اختياري قابل للطي — لا يعرض تلقائيًا أثناء البيع.", 12f, Color.DKGRAY).apply {
+        setPadding(14, 10, 14, 10)
+        visibility = View.GONE
+    }
+    camerasToggle.setOnClickListener { cameraHint.visibility = if (cameraHint.visibility == View.GONE) View.VISIBLE else View.GONE }
+    content.addView(camerasToggle, LinearLayout.LayoutParams(-1, 48))
+    content.addView(cameraHint, LinearLayout.LayoutParams(-1, -2))
+}
 
     private fun showModule(title: String, message: String) {
         releasePlayers()
