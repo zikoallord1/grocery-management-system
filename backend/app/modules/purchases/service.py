@@ -10,6 +10,7 @@ from backend.app.core.product_units import ProductUnit, PurchaseItemUnit
 from backend.app.modules.finance.models import PaymentMethod
 from backend.app.modules.finance.service import CashboxService
 from backend.app.modules.inventory.service import InventoryService
+from backend.app.core.operation_guard import authorize_operation
 from backend.app.modules.suppliers.service import SupplierService
 
 
@@ -41,6 +42,14 @@ class PurchaseService:
         self._business_engine = business_engine or BusinessEngine()
 
     def create_purchase(self, *, document_no: str, business_date: str, items: list[dict], payments: list[dict] | None = None, idempotency_key: str, supplier_id: int | None = None, created_by: int | None = None):
+        created_by = authorize_operation(
+            self._session,
+            operation_id=idempotency_key,
+            module="المشتريات",
+            permission="إضافة",
+            entity_type="PURCHASE",
+            created_by=created_by,
+        )
         session = self._session
         payments = payments or []
         if not document_no.strip(): raise PurchaseError("Document number is required.")

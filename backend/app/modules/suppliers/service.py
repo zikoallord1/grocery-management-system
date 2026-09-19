@@ -9,6 +9,7 @@ from backend.app.application.business_engine import BusinessEngine
 from backend.app.domain.business_events import BusinessEvent
 from backend.app.modules.finance.models import PaymentMethod
 from backend.app.modules.finance.service import CashboxService
+from backend.app.core.operation_guard import authorize_operation
 
 
 class SupplierError(Exception):
@@ -52,6 +53,11 @@ class SupplierService:
         idempotency_key: str,
         created_by: int | None = None,
     ):
+        created_by = authorize_operation(
+            self._session, operation_id=idempotency_key, module="الموردون",
+            permission="إضافة", entity_type="SUPPLIER_PAYMENT",
+            entity_id=str(supplier_id), created_by=created_by,
+        )
         supplier = self._session.get(Supplier, supplier_id)
         if supplier is None or not supplier.is_active:
             raise SupplierError("Supplier does not exist or is inactive.")

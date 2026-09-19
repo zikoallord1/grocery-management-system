@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 
 from backend.app.core.access_control import Actor, require_permission
+from backend.app.core.audit_service import AuditService
 
 
 _current_actor: ContextVar[Actor | None] = ContextVar("current_actor", default=None)
@@ -42,3 +43,15 @@ def current_actor() -> Actor:
 
 def require_current_permission(**kwargs) -> None:
     require_permission(current_actor(), **kwargs)
+
+
+def audit_current_actor(session, *, operation_id: str, action: str, entity_type: str, details: dict | None = None) -> None:
+    actor = current_actor()
+    AuditService(session).record(
+        operation_id=operation_id,
+        event_type="ADMINISTRATION",
+        action=action,
+        entity_type=entity_type,
+        user_id=actor.user_id,
+        details=details or {},
+    )

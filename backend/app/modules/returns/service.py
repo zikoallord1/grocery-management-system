@@ -24,6 +24,7 @@ from backend.app.modules.returns.models import (
     SaleReturn,
     SaleReturnItem,
 )
+from backend.app.core.operation_guard import authorize_operation
 
 
 class ReturnError(Exception):
@@ -49,6 +50,11 @@ class ReturnService:
                     reason: str | None = None, idempotency_key: str,
                     created_by: int | None = None):
         session = self._session
+        created_by = authorize_operation(
+            session, operation_id=idempotency_key, module="المرتجعات",
+            permission="إضافة", entity_type="SALE_RETURN",
+            entity_id=str(sale_id), created_by=created_by,
+        )
         if session.execute(select(SaleReturn.id).where(SaleReturn.idempotency_key == idempotency_key)).scalar_one_or_none():
             raise DuplicateReturnError("Sales return already exists.")
         if session.execute(select(SaleReturn.id).where(SaleReturn.document_no == document_no)).scalar_one_or_none():
@@ -122,6 +128,11 @@ class ReturnService:
                         reason: str | None = None, idempotency_key: str,
                         created_by: int | None = None):
         session = self._session
+        created_by = authorize_operation(
+            session, operation_id=idempotency_key, module="المرتجعات",
+            permission="إضافة", entity_type="PURCHASE_RETURN",
+            entity_id=str(purchase_id), created_by=created_by,
+        )
         if session.execute(select(PurchaseReturn.id).where(PurchaseReturn.idempotency_key == idempotency_key)).scalar_one_or_none():
             raise DuplicateReturnError("Purchase return already exists.")
         if session.execute(select(PurchaseReturn.id).where(PurchaseReturn.document_no == document_no)).scalar_one_or_none():

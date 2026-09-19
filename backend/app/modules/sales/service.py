@@ -13,6 +13,7 @@ from backend.app.modules.customers.service import CustomerService
 from backend.app.modules.finance.models import PaymentMethod
 from backend.app.modules.finance.service import CashboxService
 from backend.app.modules.inventory.service import InventoryError, InventoryService
+from backend.app.core.operation_guard import authorize_operation
 
 
 class SaleError(Exception):
@@ -55,6 +56,14 @@ class SaleService:
     def create_sale(self, *, document_no: str, business_date: str, items: list[dict], payments: list[dict] | None = None, idempotency_key: str, customer_id: int | None = None, created_by: int | None = None):
         session = self._session
         payments = payments or []
+        created_by = authorize_operation(
+            session,
+            operation_id=idempotency_key,
+            module="المبيعات",
+            permission="إضافة",
+            entity_type="SALE",
+            created_by=created_by,
+        )
         if not document_no.strip():
             raise InvalidSaleError("Document number is required.")
         if not items:

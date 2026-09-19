@@ -8,6 +8,7 @@ from backend.app.modules.finance.models import Expense, ExpenseCategory, Expense
 from backend.app.modules.finance.service import CashboxService
 from backend.app.application.business_engine import BusinessEngine
 from backend.app.domain.business_events import BusinessEvent
+from backend.app.core.operation_guard import authorize_operation
 
 
 class ExpenseError(Exception):
@@ -36,6 +37,14 @@ class ExpenseService:
         idempotency_key: str,
         created_by: int | None = None,
     ):
+        created_by = authorize_operation(
+            self._session,
+            operation_id=idempotency_key,
+            module="المصروفات",
+            permission="إضافة",
+            entity_type="EXPENSE",
+            created_by=created_by,
+        )
         if amount <= 0:
             raise ExpenseError("Expense amount must be greater than zero.")
         if self._session.execute(

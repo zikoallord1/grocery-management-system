@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.database import Base, get_session
 from backend.app.modules.finance.service import CashboxService
+from backend.app.core.operation_guard import authorize_operation
 
 
 class Revenue(Base):
@@ -34,6 +35,13 @@ class RevenueService:
                        business_date: str, payment_method_id: int,
                        idempotency_key: str | None = None) -> Revenue:
         from backend.app.modules.finance.models import PaymentMethod
+        actor_id = authorize_operation(
+            self._session,
+            operation_id=idempotency_key or f"REVENUE:{revenue_no}",
+            module="الإيرادات",
+            permission="إضافة",
+            entity_type="REVENUE",
+        )
 
         if amount <= 0:
             raise ValueError("مبلغ الإيراد يجب أن يكون أكبر من صفر.")
@@ -67,6 +75,7 @@ class RevenueService:
             idempotency_key=f"{key}:cashbox",
             reference_type="REVENUE",
             reference_id=str(revenue.id),
+            created_by=actor_id,
         )
         if self._owns_session:
             self._session.commit()

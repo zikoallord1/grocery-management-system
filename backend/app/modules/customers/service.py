@@ -9,6 +9,7 @@ from backend.app.application.business_engine import BusinessEngine
 from backend.app.domain.business_events import BusinessEvent
 from backend.app.modules.finance.models import PaymentMethod
 from backend.app.modules.finance.service import CashboxService
+from backend.app.core.operation_guard import authorize_operation
 
 
 class CustomerError(Exception):
@@ -59,6 +60,11 @@ class CustomerService:
         created_by: int | None = None,
     ):
         session = self._get_session()
+        created_by = authorize_operation(
+            session, operation_id=idempotency_key, module="العملاء",
+            permission="إضافة", entity_type="CUSTOMER_PAYMENT",
+            entity_id=str(customer_id), created_by=created_by,
+        )
         customer = session.get(Customer, customer_id)
         if customer is None or not customer.is_active:
             raise CustomerError("Customer does not exist or is inactive.")

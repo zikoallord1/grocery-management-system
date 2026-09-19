@@ -8,6 +8,7 @@ from backend.app.modules.finance.models import (
     CashboxMovement,
     PaymentMethod,
 )
+from backend.app.core.operation_guard import authorize_operation
 
 
 class FinanceError(Exception):
@@ -93,6 +94,14 @@ class CashboxService:
         reference_id: str | None = None,
         created_by: int | None = None,
     ) -> CashboxMovement:
+        created_by = authorize_operation(
+            self._session,
+            operation_id=idempotency_key,
+            module="الصناديق والحسابات",
+            permission="إضافة",
+            entity_type="CASHBOX_MOVEMENT",
+            created_by=created_by,
+        )
         if amount <= 0:
             raise FinanceError("Amount must be greater than zero.")
 
