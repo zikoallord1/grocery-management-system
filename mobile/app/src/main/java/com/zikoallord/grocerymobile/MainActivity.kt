@@ -365,7 +365,15 @@ private fun showSales() {
         val lp = LinearLayout.LayoutParams(-1, 56); lp.setMargins(0, 10, 0, 0); content.addView(add, lp)
     }
 
-    private fun serverUrl(): String = prefs.getString("server_url", "")?.trim()?.trimEnd('/') ?: ""
+    private fun serverUrl(): String {
+        val value = prefs.all["server_url"]
+        if (value == null) return ""
+        if (value !is String) {
+            prefs.edit().remove("server_url").apply()
+            return ""
+        }
+        return value.trim().trimEnd('/')
+    }
 
     private fun showServerDialog() {
         val input = EditText(this).apply { hint = "عنوان جهاز Windows"; setSingleLine(true); setText(serverUrl()) }
@@ -439,12 +447,13 @@ private fun showSales() {
 
     private fun loadCameras() {
         cameras.clear()
-        val raw = try {
-            cameraPrefs.getString("items", "[]") ?: "[]"
-        } catch (_: ClassCastException) {
-            preserveInvalidCameraPreference("القيمة المحلية للكاميرات ليست نصًا.")
+        val storedValue = cameraPrefs.all["items"]
+        val raw = storedValue as? String
+        if (storedValue != null && raw == null) {
+            isolateInvalidCameraPreference("القيمة المحلية للكاميرات ليست نصًا.")
             return
         }
+        if (raw == null || raw.isBlank()) return
         try {
             val array = JSONArray(raw)
             for (i in 0 until array.length()) {
@@ -456,16 +465,22 @@ private fun showSales() {
                 cameras.add(CameraConfig(name, location.ifEmpty { "المحل" }, url))
             }
         } catch (_: JSONException) {
-            preserveInvalidCameraPreference("تعذر قراءة بيانات الكاميرات المحلية.")
+            preserveInvalidCameraPreference(raw, "تعذر قراءة بيانات الكاميرات المحلية.")
         } catch (_: IllegalArgumentException) {
-            preserveInvalidCameraPreference("بيانات كاميرا محلية ناقصة.")
+            preserveInvalidCameraPreference(raw, "بيانات كاميرا محلية ناقصة.")
         }
     }
 
-    private fun preserveInvalidCameraPreference(reason: String) {
-        val raw = cameraPrefs.getString("items", null)
+    private fun preserveInvalidCameraPreference(raw: String, reason: String) {
         cameraPrefs.edit()
             .putString("items_corrupt_backup", raw)
+            .putString("items_corrupt_reason", reason)
+            .remove("items")
+            .apply()
+    }
+
+    private fun isolateInvalidCameraPreference(reason: String) {
+        cameraPrefs.edit()
             .putString("items_corrupt_reason", reason)
             .remove("items")
             .apply()
