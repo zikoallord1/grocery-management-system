@@ -22,6 +22,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -437,8 +438,37 @@ private fun showSales() {
     }
 
     private fun loadCameras() {
-        cameras.clear(); val raw = cameraPrefs.getString("items", "[]") ?: "[]"; val array = JSONArray(raw)
-        for (i in 0 until array.length()) { val o = array.getJSONObject(i); cameras.add(CameraConfig(o.getString("name"), o.getString("location"), o.getString("url"))) }
+        cameras.clear()
+        val raw = try {
+            cameraPrefs.getString("items", "[]") ?: "[]"
+        } catch (_: ClassCastException) {
+            preserveInvalidCameraPreference("القيمة المحلية للكاميرات ليست نصًا.")
+            return
+        }
+        try {
+            val array = JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val item = array.getJSONObject(i)
+                val name = item.getString("name").trim()
+                val location = item.getString("location").trim()
+                val url = item.getString("url").trim()
+                require(name.isNotEmpty() && url.isNotEmpty())
+                cameras.add(CameraConfig(name, location.ifEmpty { "المحل" }, url))
+            }
+        } catch (_: JSONException) {
+            preserveInvalidCameraPreference("تعذر قراءة بيانات الكاميرات المحلية.")
+        } catch (_: IllegalArgumentException) {
+            preserveInvalidCameraPreference("بيانات كاميرا محلية ناقصة.")
+        }
+    }
+
+    private fun preserveInvalidCameraPreference(reason: String) {
+        val raw = cameraPrefs.getString("items", null)
+        cameraPrefs.edit()
+            .putString("items_corrupt_backup", raw)
+            .putString("items_corrupt_reason", reason)
+            .remove("items")
+            .apply()
     }
 
     private fun saveCameras() {
