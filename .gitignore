@@ -33,6 +33,7 @@ backups/
 # Logs
 *.log
 logs/
+android-crash-log.txt
 
 # IDE / Editor
 .vscode/
