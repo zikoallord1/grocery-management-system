@@ -124,7 +124,6 @@ class MainActivity : AppCompatActivity() {
             layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
         scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val workspace = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -157,7 +156,6 @@ class MainActivity : AppCompatActivity() {
         navScroll.addView(nav)
         workspace.addView(navScroll, LinearLayout.LayoutParams(112, -1))
         workspace.addView(scroll, LinearLayout.LayoutParams(0, 0, 1f))
-        root.removeView(scroll)
         root.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
     }
